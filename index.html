@@ -1,0 +1,1813 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Dossiê DP — Controle Operacional</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:ital,wght@0,400;0,500;0,600;0,700;1,400&family=IBM+Plex+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+<style>
+:root{
+  --bg:#F7F7F4;
+  --panel:#FFFFFF;
+  --ink:#1C2333;
+  --ink-soft:#5A6274;
+  --line:#E1E1DC;
+  --line-soft:#EDEDE8;
+  --teal:#2D5F5D;
+  --teal-dark:#1F4645;
+  --teal-tint:#E7F0EF;
+  --brick:#B23A48;
+  --brick-tint:#FBEBEC;
+  --amber:#A9701F;
+  --amber-tint:#FBF1E1;
+  --green:#3F7D5C;
+  --green-tint:#EAF3EC;
+  --slate:#7C8496;
+  --slate-tint:#F0F0EE;
+  --radius:3px;
+  --font-ui: 'IBM Plex Sans', system-ui, sans-serif;
+  --font-mono: 'IBM Plex Mono', ui-monospace, monospace;
+}
+*{box-sizing:border-box;}
+html,body{margin:0;padding:0;}
+body{
+  font-family:var(--font-ui);
+  background:var(--bg);
+  color:var(--ink);
+  font-size:14px;
+  line-height:1.5;
+  -webkit-font-smoothing:antialiased;
+}
+button{font-family:inherit;}
+a{color:var(--teal);}
+::selection{background:var(--teal-tint);}
+
+/* Layout */
+#app{display:flex;min-height:100vh;}
+.sidebar{
+  width:232px;
+  flex-shrink:0;
+  background:var(--ink);
+  color:#E7E9EE;
+  padding:22px 0;
+  display:flex;
+  flex-direction:column;
+  position:sticky;
+  top:0;
+  height:100vh;
+}
+.brand{
+  padding:0 20px 20px 20px;
+  border-bottom:1px solid rgba(255,255,255,.1);
+  margin-bottom:14px;
+}
+.brand-mark{font-size:11px;letter-spacing:.06em;color:#9AA3B8;margin-bottom:3px;}
+.brand-title{font-size:17px;font-weight:600;color:#fff;}
+nav.mainnav{flex:1;overflow-y:auto;}
+.navgroup-label{
+  font-size:10.5px;color:#7B8298;padding:14px 20px 6px 20px;letter-spacing:.03em;
+}
+.navitem{
+  display:flex;align-items:center;gap:10px;
+  padding:9px 20px;
+  cursor:pointer;
+  color:#C7CCDA;
+  font-size:13.5px;
+  border-left:3px solid transparent;
+}
+.navitem:hover{background:rgba(255,255,255,.05);color:#fff;}
+.navitem.active{
+  background:rgba(255,255,255,.07);
+  color:#fff;
+  border-left-color:var(--teal);
+  font-weight:500;
+}
+.navitem .dot{width:6px;height:6px;border-radius:50%;background:var(--brick);flex-shrink:0;display:none;}
+.navitem .dot.show{display:inline-block;}
+.sidebar-foot{padding:14px 20px 4px 20px;border-top:1px solid rgba(255,255,255,.1);font-size:11.5px;color:#7B8298;}
+
+main{flex:1;min-width:0;padding:30px 38px 60px 38px;max-width:1180px;}
+
+/* Header */
+.pagehead{display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:24px;gap:20px;flex-wrap:wrap;}
+.pagehead h1{font-size:22px;margin:0 0 4px 0;font-weight:600;}
+.pagehead .sub{color:var(--ink-soft);font-size:13.5px;}
+.crumb{font-size:12.5px;color:var(--slate);margin-bottom:6px;}
+.crumb span{cursor:pointer;color:var(--teal);}
+.crumb span:hover{text-decoration:underline;}
+
+/* Buttons */
+.btn{
+  border:1px solid var(--line);
+  background:var(--panel);
+  color:var(--ink);
+  padding:8px 14px;
+  border-radius:var(--radius);
+  font-size:13px;
+  cursor:pointer;
+  font-weight:500;
+  display:inline-flex;align-items:center;gap:6px;
+}
+.btn:hover{border-color:var(--ink-soft);}
+.btn-primary{background:var(--teal);color:#fff;border-color:var(--teal);}
+.btn-primary:hover{background:var(--teal-dark);border-color:var(--teal-dark);}
+.btn-danger{color:var(--brick);border-color:var(--brick);background:var(--brick-tint);}
+.btn-sm{padding:5px 10px;font-size:12px;}
+.btn-ghost{border-color:transparent;background:transparent;padding:6px 8px;}
+.btn-ghost:hover{background:var(--slate-tint);}
+
+/* Cards / grid */
+.grid{display:grid;gap:14px;}
+.grid-4{grid-template-columns:repeat(4,1fr);}
+.grid-3{grid-template-columns:repeat(3,1fr);}
+.grid-2{grid-template-columns:repeat(2,1fr);}
+@media(max-width:900px){.grid-4{grid-template-columns:repeat(2,1fr);}.grid-3{grid-template-columns:repeat(2,1fr);}}
+
+.stat-card{
+  background:var(--panel);
+  border:1px solid var(--line);
+  border-radius:var(--radius);
+  padding:16px 16px 14px 16px;
+  cursor:pointer;
+}
+.stat-card:hover{border-color:var(--ink-soft);}
+.stat-card .num{font-family:var(--font-mono);font-size:26px;font-weight:600;line-height:1;}
+.stat-card .lbl{color:var(--ink-soft);font-size:12.5px;margin-top:7px;}
+.stat-card.flag .num{color:var(--brick);}
+.stat-card.ok .num{color:var(--teal);}
+
+.panel{
+  background:var(--panel);
+  border:1px solid var(--line);
+  border-radius:var(--radius);
+  padding:18px 20px;
+  margin-bottom:16px;
+}
+.panel h2{font-size:14.5px;margin:0 0 12px 0;font-weight:600;display:flex;justify-content:space-between;align-items:center;}
+.panel h2 .btn{font-weight:500;}
+
+/* Tables */
+table{width:100%;border-collapse:collapse;font-size:13px;}
+th{
+  text-align:left;
+  font-weight:500;
+  color:var(--ink-soft);
+  font-size:11.5px;
+  padding:8px 10px;
+  border-bottom:1px solid var(--line);
+  white-space:nowrap;
+}
+td{
+  padding:9px 10px;
+  border-bottom:1px solid var(--line-soft);
+  vertical-align:middle;
+}
+tr.clickable{cursor:pointer;}
+tr.clickable:hover td{background:var(--slate-tint);}
+.mono{font-family:var(--font-mono);}
+.tnum{font-family:var(--font-mono);font-variant-numeric:tabular-nums;}
+.empty-row td{color:var(--slate);font-style:italic;text-align:center;padding:22px;}
+
+/* Badges */
+.badge{
+  display:inline-flex;align-items:center;gap:5px;
+  padding:3px 9px;border-radius:20px;font-size:11.5px;font-weight:500;
+  white-space:nowrap;
+}
+.badge-ativo{background:var(--green-tint);color:var(--green);}
+.badge-desligado{background:var(--slate-tint);color:var(--slate);}
+.badge-pendente{background:var(--amber-tint);color:var(--amber);}
+.badge-conferido{background:#E4EEF7;color:#2A5F8A;}
+.badge-lancado{background:#EFE7F5;color:#6A3F92;}
+.badge-finalizado{background:var(--green-tint);color:var(--green);}
+.badge-urgente{background:var(--brick-tint);color:var(--brick);}
+.badge-neutro{background:var(--slate-tint);color:var(--ink-soft);}
+
+/* Filters bar */
+.filterbar{display:flex;gap:8px;margin-bottom:14px;flex-wrap:wrap;align-items:center;}
+.filterbar input[type=text], .filterbar select{
+  border:1px solid var(--line);border-radius:var(--radius);padding:7px 10px;font-size:13px;font-family:inherit;background:#fff;
+}
+.filterbar input[type=text]{min-width:200px;}
+
+/* Tabs */
+.tabs{display:flex;gap:2px;border-bottom:1px solid var(--line);margin-bottom:18px;flex-wrap:wrap;}
+.tab{
+  padding:9px 14px;font-size:13px;cursor:pointer;color:var(--ink-soft);
+  border-bottom:2px solid transparent;margin-bottom:-1px;
+}
+.tab:hover{color:var(--ink);}
+.tab.active{color:var(--teal);border-bottom-color:var(--teal);font-weight:600;}
+
+/* Forms */
+.formgrid{display:grid;grid-template-columns:1fr 1fr;gap:12px 16px;}
+.formgrid.full, .field.full{grid-column:1/-1;}
+.field label{display:block;font-size:12px;color:var(--ink-soft);margin-bottom:4px;}
+.field input, .field select, .field textarea{
+  width:100%;border:1px solid var(--line);border-radius:var(--radius);padding:8px 10px;font-size:13.5px;font-family:inherit;background:#fff;color:var(--ink);
+}
+.field textarea{resize:vertical;min-height:60px;}
+.field input:focus, .field select:focus, .field textarea:focus{outline:2px solid var(--teal-tint);border-color:var(--teal);}
+
+/* Modal */
+.modal-backdrop{
+  position:fixed;inset:0;background:rgba(20,24,34,.45);display:flex;align-items:flex-start;justify-content:center;
+  padding:40px 20px;overflow-y:auto;z-index:100;
+}
+.modal{
+  background:#fff;border-radius:6px;width:100%;max-width:620px;padding:24px 26px 22px 26px;
+  box-shadow:0 20px 50px rgba(0,0,0,.25);
+}
+.modal h3{margin:0 0 16px 0;font-size:16px;}
+.modal-actions{display:flex;justify-content:flex-end;gap:8px;margin-top:20px;}
+.modal.wide{max-width:820px;}
+
+/* Checklist */
+.checklist{list-style:none;margin:0;padding:0;}
+.checklist li{
+  display:flex;align-items:center;gap:10px;padding:8px 0;border-bottom:1px solid var(--line-soft);
+}
+.checklist li:last-child{border-bottom:none;}
+.checklist input[type=checkbox]{width:16px;height:16px;accent-color:var(--teal);flex-shrink:0;}
+.checklist .cl-label{flex:1;font-size:13.5px;}
+.checklist li.done .cl-label{color:var(--slate);text-decoration:line-through;}
+.checklist-progress{height:5px;background:var(--line-soft);border-radius:4px;overflow:hidden;margin-bottom:14px;}
+.checklist-progress-bar{height:100%;background:var(--teal);}
+
+/* Employee/company detail header */
+.detail-head{display:flex;justify-content:space-between;align-items:flex-start;gap:16px;margin-bottom:8px;flex-wrap:wrap;}
+.detail-title{font-size:20px;font-weight:600;}
+.detail-meta{color:var(--ink-soft);font-size:13px;margin-top:3px;}
+
+.two-col{display:grid;grid-template-columns:1.4fr 1fr;gap:16px;align-items:start;}
+@media(max-width:920px){.two-col{grid-template-columns:1fr;}}
+
+.kv{display:grid;grid-template-columns:130px 1fr;gap:7px 10px;font-size:13.5px;}
+.kv dt{color:var(--ink-soft);}
+.kv dd{margin:0;}
+
+.timeline{list-style:none;margin:0;padding:0;border-left:2px solid var(--line);margin-left:6px;}
+.timeline li{padding:0 0 16px 18px;position:relative;}
+.timeline li::before{content:'';position:absolute;left:-6px;top:3px;width:10px;height:10px;border-radius:50%;background:var(--teal);border:2px solid #fff;}
+.timeline .tdate{font-family:var(--font-mono);font-size:11.5px;color:var(--slate);}
+.timeline .tdesc{font-size:13.5px;margin-top:2px;}
+
+.hint{color:var(--slate);font-size:12.5px;margin-top:2px;}
+.divider{height:1px;background:var(--line);margin:16px 0;}
+.section-title{font-size:12px;text-transform:none;color:var(--ink-soft);font-weight:600;margin:0 0 10px 0;letter-spacing:.01em;}
+.toast{
+  position:fixed;bottom:22px;right:22px;background:var(--ink);color:#fff;padding:11px 18px;border-radius:var(--radius);
+  font-size:13px;box-shadow:0 8px 24px rgba(0,0,0,.2);z-index:200;
+}
+.doc-row{display:flex;align-items:center;gap:10px;padding:9px 0;border-bottom:1px solid var(--line-soft);font-size:13.5px;}
+.doc-row:last-child{border-bottom:none;}
+.doc-icon{width:26px;height:26px;border-radius:4px;background:var(--slate-tint);display:flex;align-items:center;justify-content:center;font-size:12px;color:var(--ink-soft);flex-shrink:0;}
+.linklike{color:var(--teal);cursor:pointer;font-weight:500;}
+.linklike:hover{text-decoration:underline;}
+.icon-btn{background:none;border:none;cursor:pointer;color:var(--slate);font-size:14px;padding:4px;}
+.icon-btn:hover{color:var(--brick);}
+</style>
+</head>
+<body>
+<div id="app"></div>
+<script>
+/* ============================= DATA LAYER ============================= */
+const STORE_KEY = 'dossieDP_v1';
+
+function seedData(){
+  const now = new Date();
+  const comp = fmtCompetencia(now);
+  return {
+    meta:{ competenciaAtual: comp },
+    empresas:[
+      {id:'e1', razaoSocial:'Grãos & Cia Alimentos Ltda', nomeFantasia:'Grãos & Cia', cnpj:'12.345.678/0001-90', responsavel:'Marina Torres', diaPagamento:5, sindicato:'Sind. Trab. Ind. Alimentação — SP', observacoes:'Fechamento sempre antecipado em feriados.',
+        regras:{particularidades:'Adicional noturno para equipe de produção (22h-5h). Banco de horas ativo.', beneficios:['VT','VA','Unimed Saúde','Unimed Odonto'], datasImportantes:'Envio de horas: dia 20. Fechamento: dia 25.', formaPagamento:'Depósito bancário', regrasEspecificas:'PLR paga em duas parcelas (jun/dez).'}},
+      {id:'e2', razaoSocial:'Nortech Soluções em TI S.A.', nomeFantasia:'Nortech', cnpj:'98.765.432/0001-11', responsavel:'Felipe Andrade', diaPagamento:1, sindicato:'Sindpd — SP', observacoes:'',
+        regras:{particularidades:'Home office híbrido, sem controle de ponto para nível pleno+.', beneficios:['VA','Unimed Saúde'], datasImportantes:'Fechamento: dia 27.', formaPagamento:'Depósito bancário', regrasEspecificas:'Auxílio home office fixo de R$150.'}},
+      {id:'e3', razaoSocial:'Studio Vívida Arquitetura Ltda', nomeFantasia:'Studio Vívida', cnpj:'45.111.222/0001-33', responsavel:'Ana Beatriz Reis', diaPagamento:10, sindicato:'Sind. Arquitetos — MG', observacoes:'Empresa pequena, sócias atuantes.',
+        regras:{particularidades:'Equipe reduzida, sem plano de saúde corporativo ainda.', beneficios:['VT'], datasImportantes:'Fechamento: dia 28.', formaPagamento:'PIX', regrasEspecificas:''}}
+    ],
+    empregados:[
+      {id:'f1', empresaId:'e1', nome:'Carlos Eduardo Lima', cargo:'Operador de Produção', admissao:'2022-03-14', salario:2450, status:'Ativo',
+        beneficios:{vt:{recebe:true, dataRecarga:1}, va:{recebe:true, dataInicio:'2022-03-14', valor:600, status:'Ativo', obs:'', historico:[{data:'2022-03-14',valor:550,evento:'Início'},{data:'2024-01-01',valor:600,evento:'Reajuste anual'}]},
+          unimedSaude:{contratado:true, status:'Confirmada'}, unimedOdonto:{contratado:true, status:'Confirmada'}},
+        particularidades:{gratificacoesFixas:'Adicional noturno fixo (20%)', premiosVariaveis:'', observacoes:''},
+        checklistAdmissao:{'Cadastro no sistema':true,'Admissão no eSocial':true,'VT verificado':true,'Vale-alimentação verificado':true,'Unimed Saúde verificada':true,'Unimed Saúde solicitada':true,'Unimed Saúde confirmada':true,'Odonto verificado':true,'Odonto solicitado':true,'Odonto confirmado':true,'Descontos cadastrados':true,'Documentação anexada':true,'Processo finalizado':true},
+        checklistDesligamento:null,
+        historico:[{data:'2022-03-14',tipo:'Admissão',desc:'Admitido como Operador de Produção.'},{data:'2024-01-05',tipo:'Benefício',desc:'Reajuste do vale-alimentação para R$600.'}],
+        documentos:[{nome:'Contrato_Carlos.pdf',categoria:'Contrato',data:'2022-03-14'}]},
+      {id:'f2', empresaId:'e1', nome:'Juliana Prado Santos', cargo:'Analista Fiscal', admissao:'2023-06-01', salario:4200, status:'Ativo',
+        beneficios:{vt:{recebe:false, dataRecarga:1}, va:{recebe:true, dataInicio:'2023-06-01', valor:750, status:'Ativo', obs:'', historico:[{data:'2023-06-01',valor:700,evento:'Início'}]},
+          unimedSaude:{contratado:true, status:'Aguardando operadora'}, unimedOdonto:{contratado:false, status:'—'}},
+        particularidades:{gratificacoesFixas:'', premiosVariaveis:'Bônus trimestral por meta fiscal', observacoes:''},
+        checklistAdmissao:{'Cadastro no sistema':true,'Admissão no eSocial':true,'VT verificado':true,'Vale-alimentação verificado':true,'Unimed Saúde verificada':true,'Unimed Saúde solicitada':true,'Unimed Saúde confirmada':false,'Odonto verificado':true,'Odonto solicitado':false,'Odonto confirmado':false,'Descontos cadastrados':true,'Documentação anexada':true,'Processo finalizado':false},
+        checklistDesligamento:null,
+        historico:[{data:'2023-06-01',tipo:'Admissão',desc:'Admitida como Analista Fiscal.'},{data:'2026-08-20',tipo:'Benefício',desc:'Inclusão na Unimed Saúde solicitada à operadora.'}],
+        documentos:[]},
+      {id:'f3', empresaId:'e1', nome:'Roberto Nunes Alves', cargo:'Auxiliar de Produção', admissao:'2021-02-01', salario:2100, status:'Desligado', desligamentoData:'2026-08-15',
+        beneficios:{vt:{recebe:true, dataRecarga:1}, va:{recebe:false, dataInicio:'2021-02-01', valor:0, status:'Encerrado', obs:'Encerrado no desligamento.', historico:[{data:'2021-02-01',valor:500,evento:'Início'},{data:'2026-08-15',valor:0,evento:'Encerrado — desligamento'}]},
+          unimedSaude:{contratado:true, status:'Ativo — pendente exclusão'}, unimedOdonto:{contratado:false, status:'—'}},
+        particularidades:{gratificacoesFixas:'', premiosVariaveis:'', observacoes:''},
+        checklistAdmissao:{'Cadastro no sistema':true,'Admissão no eSocial':true,'VT verificado':true,'Vale-alimentação verificado':true,'Unimed Saúde verificada':true,'Unimed Saúde solicitada':true,'Unimed Saúde confirmada':true,'Odonto verificado':true,'Odonto solicitado':false,'Odonto confirmado':false,'Descontos cadastrados':true,'Documentação anexada':true,'Processo finalizado':true},
+        checklistDesligamento:{'Rescisão processada':true,'eSocial enviado':true,'VT encerrado':true,'Vale-alimentação encerrado':true,'Exclusões de benefícios':false,'Pagamentos extras revisados':true,'Descontos recorrentes encerrados':true,'Documentação anexada':false,'Processo finalizado':false},
+        historico:[{data:'2021-02-01',tipo:'Admissão',desc:'Admitido como Auxiliar de Produção.'},{data:'2026-08-15',tipo:'Desligamento',desc:'Desligamento processado. Exclusão da Unimed Saúde pendente.'}],
+        documentos:[]},
+      {id:'f4', empresaId:'e2', nome:'Bruno Kazuo Yamada', cargo:'Desenvolvedor Pleno', admissao:'2024-01-10', salario:7800, status:'Ativo',
+        beneficios:{vt:{recebe:false, dataRecarga:1}, va:{recebe:true, dataInicio:'2024-01-10', valor:900, status:'Ativo', obs:'', historico:[{data:'2024-01-10',valor:900,evento:'Início'}]},
+          unimedSaude:{contratado:true, status:'Confirmada'}, unimedOdonto:{contratado:false, status:'—'}},
+        particularidades:{gratificacoesFixas:'Auxílio home office R$150 fixo', premiosVariaveis:'', observacoes:''},
+        checklistAdmissao:{'Cadastro no sistema':true,'Admissão no eSocial':true,'VT verificado':true,'Vale-alimentação verificado':true,'Unimed Saúde verificada':true,'Unimed Saúde solicitada':true,'Unimed Saúde confirmada':true,'Odonto verificado':true,'Odonto solicitado':false,'Odonto confirmado':false,'Descontos cadastrados':true,'Documentação anexada':true,'Processo finalizado':true},
+        checklistDesligamento:null,
+        historico:[{data:'2024-01-10',tipo:'Admissão',desc:'Admitido como Desenvolvedor Pleno.'}],
+        documentos:[]},
+      {id:'f5', empresaId:'e2', nome:'Patrícia Gomes Ferreira', cargo:'Gerente de Projetos', admissao:'2026-08-24', salario:9500, status:'Ativo',
+        beneficios:{vt:{recebe:false, dataRecarga:1}, va:{recebe:true, dataInicio:'2026-08-24', valor:900, status:'Ativo', obs:'', historico:[{data:'2026-08-24',valor:900,evento:'Início'}]},
+          unimedSaude:{contratado:true, status:'Inclusão necessária'}, unimedOdonto:{contratado:false, status:'—'}},
+        particularidades:{gratificacoesFixas:'', premiosVariaveis:'', observacoes:'Admissão recente — checklist em andamento.'},
+        checklistAdmissao:{'Cadastro no sistema':true,'Admissão no eSocial':true,'VT verificado':true,'Vale-alimentação verificado':true,'Unimed Saúde verificada':true,'Unimed Saúde solicitada':false,'Unimed Saúde confirmada':false,'Odonto verificado':true,'Odonto solicitado':false,'Odonto confirmado':false,'Descontos cadastrados':false,'Documentação anexada':true,'Processo finalizado':false},
+        checklistDesligamento:null,
+        historico:[{data:'2026-08-24',tipo:'Admissão',desc:'Admitida como Gerente de Projetos.'}],
+        documentos:[]},
+      {id:'f6', empresaId:'e3', nome:'Larissa Monteiro Costa', cargo:'Arquiteta Júnior', admissao:'2025-05-02', salario:3300, status:'Ativo',
+        beneficios:{vt:{recebe:true, dataRecarga:1}, va:{recebe:false, dataInicio:'2025-05-02', valor:0, status:'—', obs:'', historico:[]},
+          unimedSaude:{contratado:false, status:'—'}, unimedOdonto:{contratado:false, status:'—'}},
+        particularidades:{gratificacoesFixas:'', premiosVariaveis:'', observacoes:''},
+        checklistAdmissao:{'Cadastro no sistema':true,'Admissão no eSocial':true,'VT verificado':true,'Vale-alimentação verificado':true,'Unimed Saúde verificada':true,'Unimed Saúde solicitada':false,'Unimed Saúde confirmada':false,'Odonto verificado':true,'Odonto solicitado':false,'Odonto confirmado':false,'Descontos cadastrados':true,'Documentação anexada':true,'Processo finalizado':true},
+        checklistDesligamento:null,
+        historico:[{data:'2025-05-02',tipo:'Admissão',desc:'Admitida como Arquiteta Júnior.'}],
+        documentos:[]}
+    ],
+    socios:[
+      {id:'s1', empresaId:'e3', nome:'Ana Beatriz Reis', status:'Ativa', proLabore:6000, distribuiLucros:true, regra:'50/50 entre sócias, trimestral', valor:'', observacoes:''},
+      {id:'s2', empresaId:'e3', nome:'Camila Duarte Reis', status:'Ativa', proLabore:6000, distribuiLucros:true, regra:'50/50 entre sócias, trimestral', valor:'', observacoes:''},
+      {id:'s3', empresaId:'e1', nome:'Eduardo Marchetti', status:'Ativo', proLabore:12000, distribuiLucros:false, regra:'Sem distribuição — reinvestimento', valor:'', observacoes:''}
+    ],
+    distribuicoes:[
+      {id:'d1', socioId:'s1', competencia:'2026-06', valor:8500, status:'Pago'},
+      {id:'d2', socioId:'s2', competencia:'2026-06', valor:8500, status:'Pago'},
+      {id:'d3', socioId:'s1', competencia:'2026-09', valor:9100, status:'Pendente'},
+      {id:'d4', socioId:'s2', competencia:'2026-09', valor:9100, status:'Pendente'}
+    ],
+    movimentacoes:[
+      {id:'m1', empregadoId:'f1', empresaId:'e1', tipo:'Adicional Noturno', valor:196, competencia:comp, status:'Lançado'},
+      {id:'m2', empregadoId:'f2', empresaId:'e1', tipo:'Bônus Trimestral', valor:850, competencia:comp, status:'Pendente'},
+      {id:'m3', empregadoId:'f3', empresaId:'e1', tipo:'Verbas Rescisórias', valor:5230, competencia:comp, status:'Conferido'},
+      {id:'m4', empregadoId:'f4', empresaId:'e2', tipo:'Auxílio Home Office', valor:150, competencia:comp, status:'Finalizado'},
+      {id:'m5', empregadoId:'f5', empresaId:'e2', tipo:'Salário Proporcional (admissão)', valor:9500, competencia:comp, status:'Pendente'},
+      {id:'m6', empregadoId:'f6', empresaId:'e3', tipo:'Desconto Vale-transporte', valor:66, competencia:comp, status:'Conferido'}
+    ],
+    pendenciasManuais:[
+      {id:'p1', empresaId:'e1', empregadoId:'f3', tipo:'Exclusão de benefício', descricao:'Solicitar exclusão da Unimed Saúde de Roberto (desligado em 15/08).', prazo:addDays(now,-3), status:'Urgente'},
+      {id:'p2', empresaId:'e2', empregadoId:'f5', tipo:'Inclusão de benefício', descricao:'Solicitar inclusão de Patrícia na Unimed Saúde.', prazo:addDays(now,2), status:'Aberta'},
+      {id:'p3', empresaId:'e3', empregadoId:null, tipo:'Documento', descricao:'Solicitar CCT atualizada do sindicato dos arquitetos.', prazo:addDays(now,10), status:'Aberta'}
+    ],
+    documentosEmpresa:[
+      {id:'de1', empresaId:'e1', nome:'CCT_2026_Alimentacao.pdf', categoria:'CCT', data:'2026-01-10'},
+      {id:'de2', empresaId:'e1', nome:'Tabela_Unimed_2026.pdf', categoria:'Tabela de benefícios', data:'2026-02-22'},
+      {id:'de3', empresaId:'e2', nome:'Contrato_Prestacao_Servicos.pdf', categoria:'Contrato', data:'2025-11-01'}
+    ],
+    nextId:100
+  };
+}
+
+function fmtCompetencia(d){
+  const m = String(d.getMonth()+1).padStart(2,'0');
+  return `${d.getFullYear()}-${m}`;
+}
+function addDays(d,n){const r=new Date(d);r.setDate(r.getDate()+n);return r.toISOString().slice(0,10);}
+
+let DATA;
+DATA = loadData();
+function loadData(){
+  try{
+    const raw = localStorage.getItem(STORE_KEY);
+    if(raw) return JSON.parse(raw);
+  }catch(e){}
+  const seed = seedData();
+  saveData(seed);
+  return seed;
+}
+function saveData(d){
+  DATA = d;
+  try{ localStorage.setItem(STORE_KEY, JSON.stringify(d)); }catch(e){}
+}
+function persist(){ saveData(DATA); }
+function newId(prefix){ DATA.nextId++; return prefix+DATA.nextId; }
+
+/* ============================= VIEW STATE ============================= */
+let VIEW = { screen:'dashboard', empresaId:null, empresaTab:'dados', empregadoId:null, empregadoTab:'dados', socioId:null };
+function go(screen, extra){ VIEW = Object.assign({screen}, extra||{}); render(); window.scrollTo(0,0); }
+
+/* ============================= HELPERS ============================= */
+function esc(s){ return (s===undefined||s===null)?'':String(s).replace(/[&<>"']/g, c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c])); }
+function money(v){ v = Number(v)||0; return v.toLocaleString('pt-BR',{style:'currency',currency:'BRL'}); }
+function dateBR(iso){ if(!iso) return '—'; const [y,m,d]=iso.split('-'); return `${d}/${m}/${y}`; }
+function competenciaBR(c){ if(!c) return '—'; const [y,m]=c.split('-'); const meses=['Jan','Fev','Mar','Abr','Mai','Jun','Jul','Ago','Set','Out','Nov','Dez']; return `${meses[parseInt(m,10)-1]}/${y}`; }
+function empresaById(id){ return DATA.empresas.find(e=>e.id===id); }
+function empregadoById(id){ return DATA.empregados.find(f=>f.id===id); }
+function socioById(id){ return DATA.socios.find(s=>s.id===id); }
+function empregadosDe(empresaId){ return DATA.empregados.filter(f=>f.empresaId===empresaId); }
+function sociosDe(empresaId){ return DATA.socios.filter(s=>s.empresaId===empresaId); }
+function movimentacoesDe(empresaId){ return DATA.movimentacoes.filter(m=>m.empresaId===empresaId); }
+function statusBadgeClass(status){
+  const map = {'Ativo':'ativo','Ativa':'ativo','Desligado':'desligado','Pendente':'pendente','Conferido':'conferido','Lançado':'lancado','Finalizado':'finalizado','Urgente':'urgente','Aberta':'pendente','Pago':'finalizado','Confirmada':'finalizado','Confirmado':'finalizado'};
+  return 'badge-'+(map[status]||'neutro');
+}
+function badge(status){ return `<span class="badge ${statusBadgeClass(status)}">${esc(status)}</span>`; }
+function isCurrentComp(c){ return c===DATA.meta.competenciaAtual; }
+function daysUntil(iso){ const d=new Date(iso+'T00:00:00'); const t=new Date(); t.setHours(0,0,0,0); return Math.round((d-t)/86400000); }
+function toast(msg){
+  let t = document.createElement('div'); t.className='toast'; t.textContent=msg;
+  document.body.appendChild(t); setTimeout(()=>t.remove(),2600);
+}
+
+/* Central pendency computation (derived + manual) */
+function computePendencias(){
+  const list = [];
+  DATA.empregados.forEach(f=>{
+    const emp = empresaById(f.empresaId);
+    if(f.status==='Desligado'){
+      const ativos = [];
+      if(f.beneficios.unimedSaude.contratado && !/exclu[íi]da|encerrad/i.test(f.beneficios.unimedSaude.status)) ativos.push('Unimed Saúde');
+      if(f.beneficios.unimedOdonto.contratado && !/exclu[íi]da|encerrad/i.test(f.beneficios.unimedOdonto.status)) ativos.push('Unimed Odonto');
+      if(f.beneficios.va.recebe && f.beneficios.va.status!=='Encerrado') ativos.push('Vale-alimentação');
+      if(ativos.length){
+        list.push({id:'auto-desl-'+f.id, empresaId:f.empresaId, empregadoId:f.id, tipo:'Desligado com benefício ativo', descricao:`${f.nome} (${emp?emp.nomeFantasia:''}) segue com ${ativos.join(', ')} ativo(s) após desligamento.`, prazo:f.desligamentoData, status:'Urgente', auto:true});
+      }
+    }
+    if(f.checklistAdmissao && !Object.values(f.checklistAdmissao).every(v=>v)){
+      const pend = Object.entries(f.checklistAdmissao).filter(([k,v])=>!v).map(([k])=>k);
+      list.push({id:'auto-adm-'+f.id, empresaId:f.empresaId, empregadoId:f.id, tipo:'Admissão com pendência', descricao:`${f.nome}: checklist de admissão incompleto (${pend.length} etapa${pend.length>1?'s':''} pendente${pend.length>1?'s':''}).`, prazo:f.admissao, status:'Aberta', auto:true});
+    }
+    if(f.checklistDesligamento && !Object.values(f.checklistDesligamento).every(v=>v)){
+      const pend = Object.entries(f.checklistDesligamento).filter(([k,v])=>!v).map(([k])=>k);
+      list.push({id:'auto-desl2-'+f.id, empresaId:f.empresaId, empregadoId:f.id, tipo:'Desligamento com pendência', descricao:`${f.nome}: checklist de desligamento incompleto (${pend.join(', ')}).`, prazo:f.desligamentoData, status:'Urgente', auto:true});
+    }
+  });
+  DATA.movimentacoes.forEach(m=>{
+    if(m.status==='Pendente' && isCurrentComp(m.competencia)){
+      const f = empregadoById(m.empregadoId);
+      list.push({id:'auto-mov-'+m.id, empresaId:m.empresaId, empregadoId:m.empregadoId, tipo:'Movimentação não lançada', descricao:`${f?f.nome:'—'}: "${m.tipo}" (${money(m.valor)}) ainda não conferida/lançada.`, prazo:null, status:'Aberta', auto:true});
+    }
+  });
+  DATA.pendenciasManuais.forEach(p=> list.push(Object.assign({auto:false}, p)));
+  return list;
+}
+function proximasRecargasVT(){
+  const list = [];
+  DATA.empregados.filter(f=>f.status==='Ativo' && f.beneficios.vt.recebe).forEach(f=>{
+    const emp = empresaById(f.empresaId);
+    list.push({empregado:f.nome, empresa:emp?emp.nomeFantasia:'', dia:f.beneficios.vt.dataRecarga||1});
+  });
+  return list;
+}
+
+/* ============================= RENDER: SHELL ============================= */
+function render(){
+  const app = document.getElementById('app');
+  app.innerHTML = `
+    <div class="sidebar">
+      <div class="brand">
+        <div class="brand-mark">CONTROLE OPERACIONAL</div>
+        <div class="brand-title">Dossiê DP</div>
+      </div>
+      <nav class="mainnav">
+        ${navItem('dashboard','Dashboard geral')}
+        <div class="navgroup-label">EMPRESAS</div>
+        ${navItem('empresas','Empresas')}
+        ${navItem('socios','Sócios &amp; lucros')}
+        <div class="navgroup-label">OPERAÇÃO MENSAL</div>
+        ${navItem('movimentacoes','Movimentações')}
+        ${navItem('beneficios','Benefícios')}
+        ${navItem('pendencias','Central de pendências', computePendencias().some(p=>p.status==='Urgente'))}
+        <div class="navgroup-label">SUPORTE</div>
+        ${navItem('documentos','Documentos')}
+      </nav>
+      <div class="sidebar-foot">Competência atual<br><strong style="color:#C7CCDA">${competenciaBR(DATA.meta.competenciaAtual)}</strong></div>
+    </div>
+    <main id="main"></main>
+  `;
+  renderMain();
+}
+function navItem(screen,label,flag){
+  const active = VIEW.screen===screen || (VIEW.screen==='empresaDetail' && screen==='empresas') || (VIEW.screen==='empregadoDetail' && screen==='empresas');
+  return `<div class="navitem ${active?'active':''}" onclick="go('${screen}')"><span class="dot ${flag?'show':''}"></span>${label}</div>`;
+}
+
+function renderMain(){
+  const main = document.getElementById('main');
+  let html = '';
+  switch(VIEW.screen){
+    case 'dashboard': html = viewDashboard(); break;
+    case 'empresas': html = viewEmpresas(); break;
+    case 'empresaDetail': html = viewEmpresaDetail(); break;
+    case 'empregadoDetail': html = viewEmpregadoDetail(); break;
+    case 'socios': html = viewSocios(); break;
+    case 'movimentacoes': html = viewMovimentacoes(); break;
+    case 'beneficios': html = viewBeneficios(); break;
+    case 'pendencias': html = viewPendencias(); break;
+    case 'documentos': html = viewDocumentos(); break;
+    default: html = viewDashboard();
+  }
+  main.innerHTML = html;
+}
+
+/* ============================= DASHBOARD ============================= */
+function viewDashboard(){
+  const comp = DATA.meta.competenciaAtual;
+  const ativos = DATA.empregados.filter(f=>f.status==='Ativo');
+  const admissoesMes = DATA.empregados.filter(f=>f.admissao && f.admissao.slice(0,7)===comp);
+  const desligMes = DATA.empregados.filter(f=>f.desligamentoData && f.desligamentoData.slice(0,7)===comp);
+  const pend = computePendencias();
+  const urgentes = pend.filter(p=>p.status==='Urgente');
+  const inclusoesPend = DATA.empregados.filter(f=>{
+    const s=f.beneficios.unimedSaude, o=f.beneficios.unimedOdonto;
+    return f.status==='Ativo' && ((s.contratado && !/confirmad/i.test(s.status)) || (o.contratado && !/confirmad/i.test(o.status)));
+  });
+  const exclusoesPend = DATA.empregados.filter(f=> f.status==='Desligado' && ((f.beneficios.unimedSaude.contratado && !/exclu[íi]da|encerrad/i.test(f.beneficios.unimedSaude.status)) || (f.beneficios.unimedOdonto.contratado && !/exclu[íi]da|encerrad/i.test(f.beneficios.unimedOdonto.status))));
+  const movNaoConferidas = DATA.movimentacoes.filter(m=>isCurrentComp(m.competencia) && (m.status==='Pendente'));
+  const recargas = proximasRecargasVT();
+
+  return `
+    <div class="pagehead">
+      <div>
+        <h1>Dashboard geral</h1>
+        <div class="sub">Resumo da competência ${competenciaBR(comp)} — visão consolidada de todos os clientes.</div>
+      </div>
+    </div>
+
+    <div class="grid grid-4" style="margin-bottom:14px;">
+      <div class="stat-card" onclick="go('empresas')"><div class="num">${DATA.empresas.length}</div><div class="lbl">Empresas cadastradas</div></div>
+      <div class="stat-card ok" onclick="go('empresas')"><div class="num">${ativos.length}</div><div class="lbl">Empregados ativos</div></div>
+      <div class="stat-card" onclick="go('socios')"><div class="num">${DATA.socios.length}</div><div class="lbl">Sócios cadastrados</div></div>
+      <div class="stat-card ${urgentes.length?'flag':''}" onclick="go('pendencias')"><div class="num">${pend.length}</div><div class="lbl">Pendências abertas${urgentes.length?` · ${urgentes.length} urgente(s)`:''}</div></div>
+    </div>
+    <div class="grid grid-4" style="margin-bottom:22px;">
+      <div class="stat-card ok" onclick="go('empresas')"><div class="num">${admissoesMes.length}</div><div class="lbl">Admissões no mês</div></div>
+      <div class="stat-card" onclick="go('empresas')"><div class="num">${desligMes.length}</div><div class="lbl">Desligamentos no mês</div></div>
+      <div class="stat-card ${inclusoesPend.length?'flag':''}" onclick="go('beneficios')"><div class="num">${inclusoesPend.length}</div><div class="lbl">Inclusões de benefício pendentes</div></div>
+      <div class="stat-card ${exclusoesPend.length?'flag':''}" onclick="go('beneficios')"><div class="num">${exclusoesPend.length}</div><div class="lbl">Exclusões de benefício pendentes</div></div>
+    </div>
+
+    <div class="two-col">
+      <div>
+        <div class="panel">
+          <h2>Movimentações não conferidas <button class="btn btn-sm" onclick="go('movimentacoes')">Ver todas</button></h2>
+          ${movNaoConferidas.length===0?`<p class="hint">Nenhuma movimentação pendente nesta competência.</p>`:`
+          <table><thead><tr><th>Empregado</th><th>Empresa</th><th>Tipo</th><th>Valor</th><th>Status</th></tr></thead><tbody>
+          ${movNaoConferidas.map(m=>{
+            const f=empregadoById(m.empregadoId), emp=empresaById(m.empresaId);
+            return `<tr class="clickable" onclick="go('empregadoDetail',{empregadoId:'${f.id}',empresaId:'${emp.id}',empregadoTab:'dados'})"><td>${esc(f.nome)}</td><td>${esc(emp.nomeFantasia)}</td><td>${esc(m.tipo)}</td><td class="tnum">${money(m.valor)}</td><td>${badge(m.status)}</td></tr>`;
+          }).join('')}
+          </tbody></table>`}
+        </div>
+
+        <div class="panel">
+          <h2>Pendências urgentes <button class="btn btn-sm" onclick="go('pendencias')">Central de pendências</button></h2>
+          ${urgentes.length===0?`<p class="hint">Nenhuma pendência urgente no momento.</p>`:`
+          <table><thead><tr><th>Empresa</th><th>Tipo</th><th>Descrição</th><th>Prazo</th></tr></thead><tbody>
+          ${urgentes.slice(0,6).map(p=>{
+            const emp=empresaById(p.empresaId);
+            return `<tr class="clickable" onclick="${p.empregadoId?`go('empregadoDetail',{empregadoId:'${p.empregadoId}',empresaId:'${p.empresaId}',empregadoTab:'dados'})`:`go('empresaDetail',{empresaId:'${p.empresaId}',empresaTab:'pendencias'})`}"><td>${esc(emp?emp.nomeFantasia:'—')}</td><td>${badge(p.status)} ${esc(p.tipo)}</td><td>${esc(p.descricao)}</td><td class="mono">${p.prazo?dateBR(p.prazo):'—'}</td></tr>`;
+          }).join('')}
+          </tbody></table>`}
+        </div>
+      </div>
+
+      <div>
+        <div class="panel">
+          <h2>Próximas recargas de VT</h2>
+          ${recargas.length===0?`<p class="hint">Nenhum empregado com VT ativo.</p>`:`
+          <ul class="checklist" style="border-top:1px solid var(--line-soft);">
+          ${recargas.slice(0,8).map(r=>`<li><span class="cl-label">${esc(r.empregado)} <span style="color:var(--slate)">— ${esc(r.empresa)}</span></span><span class="mono" style="color:var(--ink-soft);font-size:12px;">dia ${r.dia}</span></li>`).join('')}
+          </ul>`}
+        </div>
+
+        <div class="panel">
+          <h2>Empresas</h2>
+          <ul class="checklist" style="border-top:1px solid var(--line-soft);">
+          ${DATA.empresas.map(e=>`<li style="cursor:pointer" onclick="go('empresaDetail',{empresaId:'${e.id}',empresaTab:'dados'})"><span class="cl-label">${esc(e.nomeFantasia)}</span><span style="color:var(--ink-soft);font-size:12px;">${empregadosDe(e.id).filter(f=>f.status==='Ativo').length} ativos</span></li>`).join('')}
+          </ul>
+        </div>
+      </div>
+    </div>
+  `;
+}
+
+/* ============================= EMPRESAS (LISTA) ============================= */
+function viewEmpresas(){
+  return `
+    <div class="pagehead">
+      <div><h1>Empresas</h1><div class="sub">Clientes ativos no controle de DP.</div></div>
+      <div style="display:flex;gap:8px;">
+        <button class="btn" onclick="openModalImportar()">Importar planilha</button>
+        <button class="btn btn-primary" onclick="openModalEmpresa()">+ Nova empresa</button>
+      </div>
+    </div>
+    <div class="panel" style="padding:0;">
+      <table><thead><tr><th>Razão social</th><th>CNPJ</th><th>Responsável</th><th>Empregados ativos</th><th>Pendências</th><th>Pagamento</th></tr></thead><tbody>
+      ${DATA.empresas.map(e=>{
+        const ativos = empregadosDe(e.id).filter(f=>f.status==='Ativo').length;
+        const pendCount = computePendencias().filter(p=>p.empresaId===e.id).length;
+        return `<tr class="clickable" onclick="go('empresaDetail',{empresaId:'${e.id}',empresaTab:'dados'})">
+          <td><strong>${esc(e.nomeFantasia)}</strong><div class="hint">${esc(e.razaoSocial)}</div></td>
+          <td class="mono">${esc(e.cnpj)}</td>
+          <td>${esc(e.responsavel)}</td>
+          <td class="tnum">${ativos}</td>
+          <td>${pendCount>0?`<span class="badge badge-urgente">${pendCount}</span>`:`<span class="badge badge-finalizado">0</span>`}</td>
+          <td>dia ${e.diaPagamento}</td>
+        </tr>`;
+      }).join('') || `<tr class="empty-row"><td colspan="6">Nenhuma empresa cadastrada.</td></tr>`}
+      </tbody></table>
+    </div>
+  `;
+}
+
+function openModalEmpresa(id){
+  const e = id?empresaById(id):null;
+  showModal(`
+    <h3>${e?'Editar empresa':'Nova empresa'}</h3>
+    <form id="formEmpresa" onsubmit="return saveEmpresa(event,'${id||''}')">
+      <div class="formgrid">
+        <div class="field full"><label>Razão social</label><input required name="razaoSocial" value="${esc(e?e.razaoSocial:'')}"></div>
+        <div class="field"><label>Nome fantasia</label><input required name="nomeFantasia" value="${esc(e?e.nomeFantasia:'')}"></div>
+        <div class="field"><label>CNPJ</label><input required name="cnpj" value="${esc(e?e.cnpj:'')}" placeholder="00.000.000/0000-00"></div>
+        <div class="field"><label>Responsável</label><input name="responsavel" value="${esc(e?e.responsavel:'')}"></div>
+        <div class="field"><label>Dia de pagamento</label><input type="number" min="1" max="31" name="diaPagamento" value="${e?e.diaPagamento:5}"></div>
+        <div class="field full"><label>Sindicato / CCT</label><input name="sindicato" value="${esc(e?e.sindicato:'')}"></div>
+        <div class="field full"><label>Observações</label><textarea name="observacoes">${esc(e?e.observacoes:'')}</textarea></div>
+      </div>
+      <div class="modal-actions">
+        <button type="button" class="btn" onclick="closeModal()">Cancelar</button>
+        <button type="submit" class="btn btn-primary">Salvar</button>
+      </div>
+    </form>
+  `);
+}
+function saveEmpresa(ev,id){
+  ev.preventDefault();
+  const f = new FormData(ev.target);
+  const vals = Object.fromEntries(f.entries());
+  vals.diaPagamento = parseInt(vals.diaPagamento,10)||5;
+  if(id){
+    Object.assign(empresaById(id), vals);
+  }else{
+    DATA.empresas.push(Object.assign({id:newId('e'), regras:{particularidades:'',beneficios:[],datasImportantes:'',formaPagamento:'',regrasEspecificas:''}}, vals));
+  }
+  persist(); closeModal(); toast('Empresa salva.'); render();
+  return false;
+}
+
+/* ============================= IMPORTAÇÃO VIA PLANILHA ============================= */
+let PENDING_IMPORT = null;
+
+function openModalImportar(){
+  showModal(`
+    <h3>Importar empresas e empregados via planilha</h3>
+    <p class="hint">Envie o arquivo preenchido a partir do modelo (abas "Empresas" e "Empregados"). Aceita .xlsx e .csv. Empresas são identificadas pelo CNPJ; empregados, pelo nome dentro de cada empresa — registros já existentes são atualizados, não duplicados.</p>
+    <div class="field full" style="margin-top:12px;">
+      <label>Arquivo (.xlsx ou .csv)</label>
+      <input type="file" id="importFileInput" accept=".xlsx,.xls,.csv" onchange="handleImportFile(this)">
+    </div>
+    <div id="importPreview" style="margin-top:14px;"></div>
+    <div class="modal-actions">
+      <button type="button" class="btn" onclick="closeModal()">Cancelar</button>
+      <button type="button" class="btn btn-primary" id="importConfirmBtn" style="display:none;" onclick="confirmImport()">Confirmar importação</button>
+    </div>
+  `);
+}
+
+function normalizeHeader(h){
+  return String(h||'')
+    .normalize('NFD').replace(/[\u0300-\u036f]/g,'')
+    .replace(/\(.*?\)/g,'')
+    .replace(/[\*\?]/g,'')
+    .replace(/\s+/g,' ')
+    .trim().toLowerCase();
+}
+const IMPORT_HEADER_MAP_EMPRESA = {
+  'razao social': 'razaoSocial',
+  'nome fantasia': 'nomeFantasia',
+  'cnpj': 'cnpj',
+  'responsavel': 'responsavel',
+  'dia de pagamento': 'diaPagamento',
+  'sindicato / cct': 'sindicato',
+  'sindicato/cct': 'sindicato',
+  'observacoes': 'observacoes',
+  'beneficios oferecidos': 'beneficios',
+  'particularidades da folha': 'particularidades',
+  'datas importantes': 'datasImportantes',
+  'forma de pagamento': 'formaPagamento',
+  'regras especificas': 'regrasEspecificas'
+};
+const IMPORT_HEADER_MAP_EMPREGADO = {
+  'cnpj da empresa': 'empresaCnpj',
+  'nome completo': 'nome',
+  'cargo': 'cargo',
+  'data de admissao': 'admissao',
+  'salario': 'salario',
+  'status': 'status',
+  'recebe vt': 'recebeVt',
+  'dia de recarga vt': 'diaRecargaVt',
+  'recebe va': 'recebeVa',
+  'valor va': 'valorVa',
+  'unimed saude': 'unimedSaude',
+  'unimed odonto': 'unimedOdonto'
+};
+function normalizeCnpj(v){ return String(v||'').replace(/[^\d]/g,''); }
+function normalizeName(v){ return String(v||'').trim().toLowerCase().replace(/\s+/g,' '); }
+function parseSimNao(v){ return /^s(im)?$/i.test(String(v||'').trim()); }
+function parseNumberFlexible(v){
+  if(typeof v === 'number') return v;
+  let s = String(v||'').trim();
+  if(!s) return 0;
+  if(/,\d{1,2}$/.test(s)) s = s.replace(/\./g,'').replace(',', '.');
+  else s = s.replace(/,/g,'');
+  const n = parseFloat(s);
+  return isNaN(n) ? 0 : n;
+}
+function excelDateToISO(v){
+  if(v instanceof Date){
+    const y=v.getUTCFullYear(), m=String(v.getUTCMonth()+1).padStart(2,'0'), d=String(v.getUTCDate()).padStart(2,'0');
+    return `${y}-${m}-${d}`;
+  }
+  const s = String(v||'').trim();
+  if(!s) return '';
+  let m = s.match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})$/);
+  if(m) return `${m[3]}-${m[2].padStart(2,'0')}-${m[1].padStart(2,'0')}`;
+  m = s.match(/^(\d{4})-(\d{1,2})-(\d{1,2})$/);
+  if(m) return `${m[1]}-${m[2].padStart(2,'0')}-${m[3].padStart(2,'0')}`;
+  return s;
+}
+
+function handleImportFile(input){
+  const file = input.files[0];
+  if(!file) return;
+  if(typeof XLSX === 'undefined'){
+    document.getElementById('importPreview').innerHTML = `<p style="color:var(--brick);font-size:13px;">Não foi possível carregar o leitor de planilhas (é necessário estar conectado à internet na primeira vez). Tente novamente ou salve o arquivo como .csv.</p>`;
+    return;
+  }
+  const reader = new FileReader();
+  reader.onload = function(e){
+    try{
+      const data = new Uint8Array(e.target.result);
+      const wb = XLSX.read(data, {type:'array', cellDates:true});
+      const empresaSheet = wb.SheetNames.includes('Empresas') ? 'Empresas' : wb.SheetNames[0];
+      const empresaRows = XLSX.utils.sheet_to_json(wb.Sheets[empresaSheet], {defval:''});
+      const empresasResult = parseImportEmpresas(empresaRows);
+
+      let empregadosResult = {toCreate:[], toUpdate:[], invalid:[]};
+      if(wb.SheetNames.includes('Empregados')){
+        const empregadoRows = XLSX.utils.sheet_to_json(wb.Sheets['Empregados'], {defval:''});
+        empregadosResult = parseImportEmpregados(empregadoRows, empresasResult.cnpjMap);
+      }
+
+      PENDING_IMPORT = {empresas: empresasResult, empregados: empregadosResult};
+      renderImportPreview();
+    }catch(err){
+      document.getElementById('importPreview').innerHTML = `<p style="color:var(--brick);font-size:13px;">Não foi possível ler o arquivo. Verifique se é um .xlsx ou .csv válido, gerado a partir do modelo.</p>`;
+    }
+  };
+  reader.readAsArrayBuffer(file);
+}
+
+function parseImportEmpresas(rows){
+  const results = {toCreate:[], toUpdate:[], invalid:[]};
+  const exampleCnpj = normalizeCnpj('00.000.000/0001-00');
+  // cnpjMap: normalized CNPJ -> {type:'existing', id} | {type:'new', ref: entryObject}
+  const cnpjMap = {};
+  DATA.empresas.forEach(e=> cnpjMap[normalizeCnpj(e.cnpj)] = {type:'existing', id:e.id});
+
+  rows.forEach((row,idx)=>{
+    const mapped = {};
+    Object.keys(row).forEach(k=>{
+      const field = IMPORT_HEADER_MAP_EMPRESA[normalizeHeader(k)];
+      if(field) mapped[field] = row[k];
+    });
+    const cnpjNorm = normalizeCnpj(mapped.cnpj);
+    const hasContent = Object.values(mapped).some(v=>String(v).trim()!=='');
+    if(!hasContent) return;
+    if(cnpjNorm === exampleCnpj) return;
+    if(!mapped.razaoSocial || !mapped.nomeFantasia || !cnpjNorm){
+      results.invalid.push({row: idx+2, motivo:'Faltam campos obrigatórios (Razão Social, Nome Fantasia ou CNPJ).'});
+      return;
+    }
+    const existing = DATA.empresas.find(e=> normalizeCnpj(e.cnpj) === cnpjNorm);
+    const entry = {
+      razaoSocial: String(mapped.razaoSocial).trim(),
+      nomeFantasia: String(mapped.nomeFantasia).trim(),
+      cnpj: String(mapped.cnpj).trim(),
+      responsavel: String(mapped.responsavel||'').trim(),
+      diaPagamento: parseInt(parseNumberFlexible(mapped.diaPagamento),10) || (existing?existing.diaPagamento:5),
+      sindicato: String(mapped.sindicato||'').trim(),
+      observacoes: String(mapped.observacoes||'').trim(),
+      regras: {
+        beneficios: String(mapped.beneficios||'').split(',').map(s=>s.trim()).filter(Boolean),
+        particularidades: String(mapped.particularidades||'').trim(),
+        datasImportantes: String(mapped.datasImportantes||'').trim(),
+        formaPagamento: String(mapped.formaPagamento||'').trim(),
+        regrasEspecificas: String(mapped.regrasEspecificas||'').trim()
+      }
+    };
+    if(existing){
+      results.toUpdate.push({existing, entry});
+      cnpjMap[cnpjNorm] = {type:'existing', id: existing.id};
+    }else{
+      results.toCreate.push(entry);
+      cnpjMap[cnpjNorm] = {type:'new', ref: entry};
+    }
+  });
+  results.cnpjMap = cnpjMap;
+  return results;
+}
+
+function parseImportEmpregados(rows, cnpjMap){
+  const results = {toCreate:[], toUpdate:[], invalid:[]};
+  const exampleCnpj = normalizeCnpj('00.000.000/0001-00');
+  rows.forEach((row,idx)=>{
+    const mapped = {};
+    Object.keys(row).forEach(k=>{
+      const field = IMPORT_HEADER_MAP_EMPREGADO[normalizeHeader(k)];
+      if(field) mapped[field] = row[k];
+    });
+    const cnpjNorm = normalizeCnpj(mapped.empresaCnpj);
+    const hasContent = Object.values(mapped).some(v=>String(v).trim()!=='');
+    if(!hasContent) return;
+    if(cnpjNorm === exampleCnpj) return;
+    if(!mapped.nome || !mapped.cargo || !mapped.admissao || cnpjNorm===''){
+      results.invalid.push({row: idx+2, motivo:'Faltam campos obrigatórios (CNPJ da Empresa, Nome, Cargo ou Data de Admissão).'});
+      return;
+    }
+    const companyRef = cnpjMap[cnpjNorm];
+    if(!companyRef){
+      results.invalid.push({row: idx+2, motivo:`Empresa com CNPJ ${esc(mapped.empresaCnpj)} não encontrada — cadastre-a na aba Empresas primeiro.`});
+      return;
+    }
+    const admissaoISO = excelDateToISO(mapped.admissao);
+    const statusNorm = String(mapped.status||'').trim().toLowerCase();
+    const status = statusNorm.startsWith('deslig') ? 'Desligado' : 'Ativo';
+    const recebeVa = parseSimNao(mapped.recebeVa);
+    const valorVa = parseNumberFlexible(mapped.valorVa);
+    const unimedSaudeSim = parseSimNao(mapped.unimedSaude);
+    const unimedOdontoSim = parseSimNao(mapped.unimedOdonto);
+    const entry = {
+      nome: String(mapped.nome).trim(),
+      cargo: String(mapped.cargo).trim(),
+      admissao: admissaoISO,
+      salario: parseNumberFlexible(mapped.salario),
+      status,
+      beneficios: {
+        vt: {recebe: parseSimNao(mapped.recebeVt), dataRecarga: parseInt(parseNumberFlexible(mapped.diaRecargaVt),10) || 1},
+        va: {recebe: recebeVa, dataInicio: admissaoISO, valor: valorVa, status: recebeVa?'Ativo':'—', obs:'', historico: recebeVa?[{data:admissaoISO, valor:valorVa, evento:'Cadastro inicial importado'}]:[]},
+        unimedSaude: {contratado: unimedSaudeSim, status: unimedSaudeSim?'Confirmada':'—'},
+        unimedOdonto: {contratado: unimedOdontoSim, status: unimedOdontoSim?'Confirmada':'—'}
+      },
+      companyRef
+    };
+    let existingEmp = null;
+    if(companyRef.type==='existing'){
+      existingEmp = DATA.empregados.find(f=> f.empresaId===companyRef.id && normalizeName(f.nome)===normalizeName(entry.nome));
+    }
+    if(existingEmp) results.toUpdate.push({existing: existingEmp, entry});
+    else results.toCreate.push(entry);
+  });
+  return results;
+}
+
+function renderImportPreview(){
+  const p = PENDING_IMPORT;
+  const box = document.getElementById('importPreview');
+  const eTotal = p.empresas.toCreate.length + p.empresas.toUpdate.length;
+  const fTotal = p.empregados.toCreate.length + p.empregados.toUpdate.length;
+  const invalidTotal = p.empresas.invalid.length + p.empregados.invalid.length;
+  let html = `<div class="panel" style="margin-bottom:10px;">`;
+  html += `<div class="section-title">Empresas</div>`;
+  html += `<p style="font-size:13.5px;margin:0 0 8px 0;"><strong>${p.empresas.toCreate.length}</strong> nova(s) · <strong>${p.empresas.toUpdate.length}</strong> atualização(ões)${p.empresas.invalid.length?` · <span style="color:var(--brick)">${p.empresas.invalid.length} linha(s) inválida(s)</span>`:''}</p>`;
+  if(eTotal>0){
+    html += `<ul class="checklist" style="border-top:1px solid var(--line-soft);max-height:150px;overflow-y:auto;">`;
+    p.empresas.toCreate.forEach(e=> html += `<li><span class="cl-label">${esc(e.nomeFantasia)}</span><span class="badge badge-finalizado">Nova</span></li>`);
+    p.empresas.toUpdate.forEach(u=> html += `<li><span class="cl-label">${esc(u.entry.nomeFantasia)}</span><span class="badge badge-pendente">Atualizar</span></li>`);
+    html += `</ul>`;
+  }
+  if(p.empresas.invalid.length) html += `<p class="hint" style="color:var(--brick);margin-top:8px;">Linhas ignoradas: ${p.empresas.invalid.map(i=>`linha ${i.row}`).join(', ')} — ${esc(p.empresas.invalid[0].motivo)}</p>`;
+  html += `</div>`;
+
+  html += `<div class="panel" style="margin-bottom:0;">`;
+  html += `<div class="section-title">Empregados</div>`;
+  html += `<p style="font-size:13.5px;margin:0 0 8px 0;"><strong>${p.empregados.toCreate.length}</strong> novo(s) · <strong>${p.empregados.toUpdate.length}</strong> atualização(ões)${p.empregados.invalid.length?` · <span style="color:var(--brick)">${p.empregados.invalid.length} linha(s) inválida(s)</span>`:''}</p>`;
+  if(fTotal>0){
+    html += `<ul class="checklist" style="border-top:1px solid var(--line-soft);max-height:150px;overflow-y:auto;">`;
+    p.empregados.toCreate.forEach(f=> html += `<li><span class="cl-label">${esc(f.nome)}</span><span class="badge badge-finalizado">Novo</span></li>`);
+    p.empregados.toUpdate.forEach(u=> html += `<li><span class="cl-label">${esc(u.entry.nome)}</span><span class="badge badge-pendente">Atualizar</span></li>`);
+    html += `</ul>`;
+  }
+  if(p.empregados.invalid.length) html += `<p class="hint" style="color:var(--brick);margin-top:8px;">Linhas ignoradas: ${p.empregados.invalid.map(i=>`linha ${i.row}`).join(', ')} — ${esc(p.empregados.invalid[0].motivo)}</p>`;
+  if(eTotal===0 && fTotal===0 && !invalidTotal) html += `<p class="hint">Nenhuma linha preenchida foi encontrada no arquivo.</p>`;
+  html += `</div>`;
+
+  box.innerHTML = html;
+  document.getElementById('importConfirmBtn').style.display = (eTotal+fTotal)>0 ? 'inline-flex' : 'none';
+}
+
+function confirmImport(){
+  if(!PENDING_IMPORT) return;
+  const p = PENDING_IMPORT;
+
+  p.empresas.toCreate.forEach(entry=>{
+    const created = Object.assign({id:newId('e')}, entry);
+    DATA.empresas.push(created);
+    entry.companyRef = entry.companyRef || null;
+    entry._createdId = created.id;
+    if(entry.__cnpjNorm===undefined){} // noop, kept for clarity
+  });
+  p.empresas.toUpdate.forEach(({existing, entry})=>{ Object.assign(existing, entry); });
+
+  function resolveCompanyId(companyRef){
+    if(companyRef.type==='existing') return companyRef.id;
+    return companyRef.ref._createdId;
+  }
+
+  p.empregados.toCreate.forEach(entry=>{
+    const empresaId = resolveCompanyId(entry.companyRef);
+    if(!empresaId) return;
+    const novo = {
+      id:newId('f'), empresaId, nome:entry.nome, cargo:entry.cargo, admissao:entry.admissao, salario:entry.salario, status:entry.status,
+      beneficios: entry.beneficios,
+      particularidades:{gratificacoesFixas:'',premiosVariaveis:'',observacoes:''},
+      checklistAdmissao:{'Cadastro no sistema':true,'Admissão no eSocial':true,'VT verificado':true,'Vale-alimentação verificado':true,'Unimed Saúde verificada':true,'Unimed Saúde solicitada':true,'Unimed Saúde confirmada':true,'Odonto verificado':true,'Odonto solicitado':true,'Odonto confirmado':true,'Descontos cadastrados':true,'Documentação anexada':true,'Processo finalizado':true},
+      checklistDesligamento: entry.status==='Desligado' ? {'Rescisão processada':true,'eSocial enviado':true,'VT encerrado':true,'Vale-alimentação encerrado':true,'Exclusões de benefícios':true,'Pagamentos extras revisados':true,'Descontos recorrentes encerrados':true,'Documentação anexada':true,'Processo finalizado':true} : null,
+      historico:[{data:entry.admissao, tipo:'Admissão', desc:`Admitido(a) como ${entry.cargo}. Cadastro inicial importado via planilha.`}],
+      documentos:[]
+    };
+    if(entry.status==='Desligado'){
+      novo.desligamentoData = new Date().toISOString().slice(0,10);
+      novo.historico.push({data:novo.desligamentoData, tipo:'Desligamento', desc:'Status "Desligado" importado via planilha (data de desligamento não informada — ajuste se necessário).'});
+    }
+    DATA.empregados.push(novo);
+  });
+  p.empregados.toUpdate.forEach(({existing, entry})=>{
+    existing.cargo = entry.cargo; existing.admissao = entry.admissao; existing.salario = entry.salario; existing.status = entry.status;
+    existing.beneficios = entry.beneficios;
+    existing.historico = existing.historico||[];
+    existing.historico.push({data:new Date().toISOString().slice(0,10), tipo:'Atualização', desc:'Dados atualizados via importação de planilha.'});
+  });
+
+  persist();
+  const summary = `Importação concluída: ${p.empresas.toCreate.length} empresa(s) nova(s), ${p.empresas.toUpdate.length} atualizada(s); ${p.empregados.toCreate.length} empregado(s) novo(s), ${p.empregados.toUpdate.length} atualizado(s).`;
+  PENDING_IMPORT = null;
+  closeModal();
+  toast(summary);
+  go('empresas');
+}
+
+/* ============================= EMPRESA DETAIL (DOSSIÊ) ============================= */
+function viewEmpresaDetail(){
+  const e = empresaById(VIEW.empresaId);
+  if(!e) return `<p>Empresa não encontrada.</p>`;
+  const tabs = [['dados','Dados da empresa'],['regras','Regras do DP'],['pessoas','Empregados & sócios'],['movimentacoes','Movimentações'],['beneficios','Benefícios'],['pendencias','Pendências'],['historico','Histórico'],['documentos','Documentos']];
+  const tab = VIEW.empresaTab||'dados';
+  let body = '';
+  if(tab==='dados') body = tabEmpresaDados(e);
+  else if(tab==='regras') body = tabEmpresaRegras(e);
+  else if(tab==='pessoas') body = tabEmpresaPessoas(e);
+  else if(tab==='movimentacoes') body = tabEmpresaMovimentacoes(e);
+  else if(tab==='beneficios') body = tabEmpresaBeneficios(e);
+  else if(tab==='pendencias') body = tabEmpresaPendencias(e);
+  else if(tab==='historico') body = tabEmpresaHistorico(e);
+  else if(tab==='documentos') body = tabEmpresaDocumentos(e);
+
+  return `
+    <div class="crumb"><span onclick="go('empresas')">Empresas</span> / ${esc(e.nomeFantasia)}</div>
+    <div class="detail-head">
+      <div>
+        <div class="detail-title">${esc(e.nomeFantasia)}</div>
+        <div class="detail-meta">${esc(e.razaoSocial)} · CNPJ ${esc(e.cnpj)}</div>
+      </div>
+      <button class="btn" onclick="openModalEmpresa('${e.id}')">Editar dados</button>
+    </div>
+    <div class="tabs">
+      ${tabs.map(([k,l])=>`<div class="tab ${tab===k?'active':''}" onclick="go('empresaDetail',{empresaId:'${e.id}',empresaTab:'${k}'})">${l}</div>`).join('')}
+    </div>
+    ${body}
+  `;
+}
+
+function tabEmpresaDados(e){
+  return `
+    <div class="two-col">
+      <div class="panel">
+        <div class="section-title">Ficha cadastral</div>
+        <dl class="kv">
+          <dt>Razão social</dt><dd>${esc(e.razaoSocial)}</dd>
+          <dt>CNPJ</dt><dd class="mono">${esc(e.cnpj)}</dd>
+          <dt>Responsável</dt><dd>${esc(e.responsavel)||'—'}</dd>
+          <dt>Dia de pagamento</dt><dd>Dia ${e.diaPagamento}</dd>
+          <dt>Sindicato / CCT</dt><dd>${esc(e.sindicato)||'—'}</dd>
+        </dl>
+      </div>
+      <div class="panel">
+        <div class="section-title">Observações</div>
+        <p style="font-size:13.5px;">${esc(e.observacoes)||'Sem observações registradas.'}</p>
+      </div>
+    </div>
+  `;
+}
+function tabEmpresaRegras(e){
+  const r = e.regras||{};
+  return `
+    <div class="panel">
+      <h2>Regras fixas do DP <button class="btn btn-sm" onclick="openModalRegras('${e.id}')">Editar</button></h2>
+      <dl class="kv">
+        <dt>Particularidades</dt><dd>${esc(r.particularidades)||'—'}</dd>
+        <dt>Benefícios oferecidos</dt><dd>${(r.beneficios||[]).map(b=>`<span class="badge badge-neutro" style="margin-right:4px;">${esc(b)}</span>`).join('')||'—'}</dd>
+        <dt>Datas importantes</dt><dd>${esc(r.datasImportantes)||'—'}</dd>
+        <dt>Forma de pagamento</dt><dd>${esc(r.formaPagamento)||'—'}</dd>
+        <dt>Regras específicas</dt><dd>${esc(r.regrasEspecificas)||'—'}</dd>
+      </dl>
+    </div>
+    <p class="hint">Estas regras são permanentes e servem de referência todos os meses — diferentemente das movimentações da competência, que são lançamentos únicos daquele mês.</p>
+  `;
+}
+function openModalRegras(empresaId){
+  const e = empresaById(empresaId); const r = e.regras||{};
+  showModal(`
+    <h3>Regras do DP — ${esc(e.nomeFantasia)}</h3>
+    <form onsubmit="return saveRegras(event,'${empresaId}')">
+      <div class="formgrid">
+        <div class="field full"><label>Particularidades da folha</label><textarea name="particularidades">${esc(r.particularidades)}</textarea></div>
+        <div class="field full"><label>Benefícios oferecidos (separados por vírgula)</label><input name="beneficios" value="${esc((r.beneficios||[]).join(', '))}"></div>
+        <div class="field full"><label>Datas importantes</label><textarea name="datasImportantes">${esc(r.datasImportantes)}</textarea></div>
+        <div class="field"><label>Forma de pagamento</label><input name="formaPagamento" value="${esc(r.formaPagamento)}"></div>
+        <div class="field full"><label>Regras específicas</label><textarea name="regrasEspecificas">${esc(r.regrasEspecificas)}</textarea></div>
+      </div>
+      <div class="modal-actions"><button type="button" class="btn" onclick="closeModal()">Cancelar</button><button type="submit" class="btn btn-primary">Salvar</button></div>
+    </form>
+  `);
+}
+function saveRegras(ev,empresaId){
+  ev.preventDefault();
+  const f = Object.fromEntries(new FormData(ev.target).entries());
+  f.beneficios = f.beneficios.split(',').map(s=>s.trim()).filter(Boolean);
+  empresaById(empresaId).regras = f;
+  persist(); closeModal(); toast('Regras do DP atualizadas.'); render();
+  return false;
+}
+
+function tabEmpresaPessoas(e){
+  const emps = empregadosDe(e.id);
+  const socs = sociosDe(e.id);
+  return `
+    <div class="panel">
+      <h2>Empregados <button class="btn btn-sm btn-primary" onclick="openModalEmpregado(null,'${e.id}')">+ Novo empregado</button></h2>
+      <table><thead><tr><th>Nome</th><th>Cargo</th><th>Admissão</th><th>Salário</th><th>Status</th></tr></thead><tbody>
+      ${emps.map(f=>`<tr class="clickable" onclick="go('empregadoDetail',{empregadoId:'${f.id}',empresaId:'${e.id}',empregadoTab:'dados'})">
+        <td>${esc(f.nome)}</td><td>${esc(f.cargo)}</td><td class="mono">${dateBR(f.admissao)}</td><td class="tnum">${money(f.salario)}</td><td>${badge(f.status)}</td>
+      </tr>`).join('') || `<tr class="empty-row"><td colspan="5">Nenhum empregado cadastrado.</td></tr>`}
+      </tbody></table>
+    </div>
+    <div class="panel">
+      <h2>Sócios <button class="btn btn-sm btn-primary" onclick="openModalSocio(null,'${e.id}')">+ Novo sócio</button></h2>
+      <table><thead><tr><th>Nome</th><th>Status</th><th>Pró-labore</th><th>Distribui lucros?</th></tr></thead><tbody>
+      ${socs.map(s=>`<tr class="clickable" onclick="openModalSocio('${s.id}')">
+        <td>${esc(s.nome)}</td><td>${badge(s.status)}</td><td class="tnum">${money(s.proLabore)}</td><td>${s.distribuiLucros?'Sim':'Não'}</td>
+      </tr>`).join('') || `<tr class="empty-row"><td colspan="4">Nenhum sócio cadastrado.</td></tr>`}
+      </tbody></table>
+    </div>
+  `;
+}
+
+function tabEmpresaMovimentacoes(e){
+  const movs = movimentacoesDe(e.id);
+  return `
+    <div class="panel">
+      <h2>Movimentações da competência ${competenciaBR(DATA.meta.competenciaAtual)} <button class="btn btn-sm btn-primary" onclick="openModalMovimentacao(null,'${e.id}')">+ Nova movimentação</button></h2>
+      ${renderMovTable(movs)}
+    </div>
+  `;
+}
+function renderMovTable(movs){
+  const statuses = ['Pendente','Conferido','Lançado','Finalizado'];
+  return `<table><thead><tr><th>Empregado</th><th>Tipo</th><th>Valor</th><th>Competência</th><th>Status</th><th></th></tr></thead><tbody>
+    ${movs.map(m=>{
+      const f = empregadoById(m.empregadoId);
+      return `<tr>
+        <td>${esc(f?f.nome:'—')}</td><td>${esc(m.tipo)}</td><td class="tnum">${money(m.valor)}</td><td class="mono">${competenciaBR(m.competencia)}</td>
+        <td><select onchange="advanceMov('${m.id}',this.value)">${statuses.map(s=>`<option value="${s}" ${m.status===s?'selected':''}>${s}</option>`).join('')}</select></td>
+        <td><button class="icon-btn" title="Remover" onclick="deleteMov('${m.id}')">✕</button></td>
+      </tr>`;
+    }).join('') || `<tr class="empty-row"><td colspan="6">Nenhuma movimentação nesta competência.</td></tr>`}
+  </tbody></table>`;
+}
+function advanceMov(id,status){
+  const m = DATA.movimentacoes.find(x=>x.id===id); m.status=status; persist(); toast('Status atualizado.'); render();
+}
+function deleteMov(id){
+  if(!confirm('Remover esta movimentação?')) return;
+  DATA.movimentacoes = DATA.movimentacoes.filter(m=>m.id!==id); persist(); toast('Movimentação removida.'); render();
+}
+function openModalMovimentacao(id, empresaIdDefault){
+  const m = id?DATA.movimentacoes.find(x=>x.id===id):null;
+  const empresaId = m?m.empresaId:empresaIdDefault;
+  const emps = empregadosDe(empresaId);
+  showModal(`
+    <h3>${m?'Editar':'Nova'} movimentação</h3>
+    <form onsubmit="return saveMovimentacao(event,'${id||''}','${empresaId}')">
+      <div class="formgrid">
+        <div class="field full"><label>Empregado</label><select name="empregadoId" required>${emps.map(f=>`<option value="${f.id}" ${m&&m.empregadoId===f.id?'selected':''}>${esc(f.nome)}</option>`).join('')}</select></div>
+        <div class="field"><label>Tipo</label><input required name="tipo" value="${esc(m?m.tipo:'')}" placeholder="Ex: Prêmio, desconto, hora extra..."></div>
+        <div class="field"><label>Valor (R$)</label><input required type="number" step="0.01" name="valor" value="${m?m.valor:''}"></div>
+        <div class="field"><label>Competência</label><input required name="competencia" value="${m?m.competencia:DATA.meta.competenciaAtual}" placeholder="AAAA-MM"></div>
+        <div class="field"><label>Status</label><select name="status">${['Pendente','Conferido','Lançado','Finalizado'].map(s=>`<option ${m&&m.status===s?'selected':''}>${s}</option>`).join('')}</select></div>
+      </div>
+      <div class="modal-actions"><button type="button" class="btn" onclick="closeModal()">Cancelar</button><button type="submit" class="btn btn-primary">Salvar</button></div>
+    </form>
+  `);
+}
+function saveMovimentacao(ev,id,empresaId){
+  ev.preventDefault();
+  const vals = Object.fromEntries(new FormData(ev.target).entries());
+  vals.valor = parseFloat(vals.valor)||0;
+  vals.empresaId = empresaId;
+  if(id) Object.assign(DATA.movimentacoes.find(m=>m.id===id), vals);
+  else DATA.movimentacoes.push(Object.assign({id:newId('m')}, vals));
+  persist(); closeModal(); toast('Movimentação salva.'); render();
+  return false;
+}
+
+function tabEmpresaBeneficios(e){
+  const emps = empregadosDe(e.id);
+  const beneficiosLista = (e.regras&&e.regras.beneficios)||[];
+  return `
+    <div class="panel">
+      <h2>Benefícios oferecidos</h2>
+      <p style="font-size:13.5px;">${beneficiosLista.length? beneficiosLista.map(b=>`<span class="badge badge-neutro" style="margin-right:5px;">${esc(b)}</span>`).join('') : '<span class="hint">Nenhum benefício configurado nas regras do DP.</span>'}</p>
+    </div>
+    <div class="panel">
+      <h2>Status por empregado</h2>
+      <table><thead><tr><th>Empregado</th><th>Status</th><th>VT</th><th>VA</th><th>Unimed Saúde</th><th>Unimed Odonto</th></tr></thead><tbody>
+      ${emps.map(f=>`<tr class="clickable" onclick="go('empregadoDetail',{empregadoId:'${f.id}',empresaId:'${e.id}',empregadoTab:'beneficios'})">
+        <td>${esc(f.nome)}</td><td>${badge(f.status)}</td>
+        <td>${f.beneficios.vt.recebe?'<span class="badge badge-finalizado">Sim</span>':'<span class="badge badge-neutro">Não</span>'}</td>
+        <td>${f.beneficios.va.recebe?'<span class="badge badge-finalizado">'+money(f.beneficios.va.valor)+'</span>':'<span class="badge badge-neutro">Não</span>'}</td>
+        <td>${benefFlowBadge(f.beneficios.unimedSaude)}</td>
+        <td>${benefFlowBadge(f.beneficios.unimedOdonto)}</td>
+      </tr>`).join('') || `<tr class="empty-row"><td colspan="6">Nenhum empregado.</td></tr>`}
+      </tbody></table>
+    </div>
+  `;
+}
+function benefFlowBadge(b){
+  if(!b || !b.contratado) return '<span class="badge badge-neutro">—</span>';
+  const urgent = /pendente exclus|inclus[ãa]o necess/i.test(b.status);
+  return `<span class="badge ${urgent?'badge-urgente':(/confirmad/i.test(b.status)?'badge-finalizado':'badge-pendente')}">${esc(b.status)}</span>`;
+}
+
+function tabEmpresaPendencias(e){
+  const pend = computePendencias().filter(p=>p.empresaId===e.id);
+  return `<div class="panel"><h2>Pendências desta empresa</h2>${renderPendTable(pend)}</div>`;
+}
+
+function tabEmpresaHistorico(e){
+  const events = [];
+  empregadosDe(e.id).forEach(f=> (f.historico||[]).forEach(h=> events.push(Object.assign({}, h, {empregado:f.nome}))));
+  events.sort((a,b)=> a.data<b.data?1:-1);
+  return `
+    <div class="panel">
+      <h2>Histórico consolidado</h2>
+      ${events.length===0?'<p class="hint">Sem eventos registrados.</p>':`
+      <ul class="timeline">
+        ${events.map(ev=>`<li><div class="tdate">${dateBR(ev.data)} · ${esc(ev.tipo)}</div><div class="tdesc"><strong>${esc(ev.empregado)}</strong> — ${esc(ev.desc)}</div></li>`).join('')}
+      </ul>`}
+    </div>
+  `;
+}
+
+function tabEmpresaDocumentos(e){
+  const docs = DATA.documentosEmpresa.filter(d=>d.empresaId===e.id);
+  return `
+    <div class="panel">
+      <h2>Documentos da empresa <button class="btn btn-sm" onclick="openModalDocEmpresa('${e.id}')">+ Anexar</button></h2>
+      ${docs.length===0?'<p class="hint">Nenhum documento anexado.</p>':docs.map(d=>`
+        <div class="doc-row"><div class="doc-icon">DOC</div><div style="flex:1;"><strong>${esc(d.nome)}</strong><div class="hint">${esc(d.categoria)} · ${dateBR(d.data)}</div></div>
+        <button class="icon-btn" onclick="deleteDocEmpresa('${d.id}')">✕</button></div>
+      `).join('')}
+    </div>
+  `;
+}
+function openModalDocEmpresa(empresaId){
+  showModal(`
+    <h3>Anexar documento</h3>
+    <form onsubmit="return saveDocEmpresa(event,'${empresaId}')">
+      <div class="formgrid">
+        <div class="field full"><label>Nome do arquivo</label><input required name="nome" placeholder="Ex: CCT_2026.pdf"></div>
+        <div class="field"><label>Categoria</label><input required name="categoria" placeholder="Ex: CCT, Contrato, Tabela..."></div>
+        <div class="field"><label>Data</label><input required type="date" name="data" value="${new Date().toISOString().slice(0,10)}"></div>
+      </div>
+      <p class="hint">Prototipagem: o arquivo em si não é enviado, apenas o registro do anexo.</p>
+      <div class="modal-actions"><button type="button" class="btn" onclick="closeModal()">Cancelar</button><button type="submit" class="btn btn-primary">Salvar</button></div>
+    </form>
+  `);
+}
+function saveDocEmpresa(ev,empresaId){
+  ev.preventDefault();
+  const vals = Object.fromEntries(new FormData(ev.target).entries());
+  DATA.documentosEmpresa.push(Object.assign({id:newId('de'), empresaId}, vals));
+  persist(); closeModal(); toast('Documento anexado.'); render();
+  return false;
+}
+function deleteDocEmpresa(id){
+  if(!confirm('Remover este documento?')) return;
+  DATA.documentosEmpresa = DATA.documentosEmpresa.filter(d=>d.id!==id); persist(); render();
+}
+
+/* ============================= EMPREGADO DETAIL ============================= */
+function openModalEmpregado(id, empresaIdDefault){
+  const f = id?empregadoById(id):null;
+  const empresaId = f?f.empresaId:empresaIdDefault;
+  showModal(`
+    <h3>${f?'Editar empregado':'Novo empregado'}</h3>
+    <form onsubmit="return saveEmpregado(event,'${id||''}','${empresaId}')">
+      <div class="formgrid">
+        <div class="field full"><label>Nome completo</label><input required name="nome" value="${esc(f?f.nome:'')}"></div>
+        <div class="field"><label>Cargo</label><input required name="cargo" value="${esc(f?f.cargo:'')}"></div>
+        <div class="field"><label>Data de admissão</label><input required type="date" name="admissao" value="${f?f.admissao:''}"></div>
+        <div class="field"><label>Salário (R$)</label><input required type="number" step="0.01" name="salario" value="${f?f.salario:''}"></div>
+        <div class="field"><label>Status</label><select name="status">${['Ativo','Desligado'].map(s=>`<option ${f&&f.status===s?'selected':''}>${s}</option>`).join('')}</select></div>
+      </div>
+      <div class="modal-actions"><button type="button" class="btn" onclick="closeModal()">Cancelar</button><button type="submit" class="btn btn-primary">Salvar</button></div>
+    </form>
+  `);
+}
+function saveEmpregado(ev,id,empresaId){
+  ev.preventDefault();
+  const vals = Object.fromEntries(new FormData(ev.target).entries());
+  vals.salario = parseFloat(vals.salario)||0;
+  if(id){
+    Object.assign(empregadoById(id), vals);
+  }else{
+    const novo = {
+      id:newId('f'), empresaId, ...vals,
+      beneficios:{vt:{recebe:false,dataRecarga:1}, va:{recebe:false,dataInicio:vals.admissao,valor:0,status:'—',obs:'',historico:[]}, unimedSaude:{contratado:false,status:'—'}, unimedOdonto:{contratado:false,status:'—'}},
+      particularidades:{gratificacoesFixas:'',premiosVariaveis:'',observacoes:''},
+      checklistAdmissao:{'Cadastro no sistema':true,'Admissão no eSocial':false,'VT verificado':false,'Vale-alimentação verificado':false,'Unimed Saúde verificada':false,'Unimed Saúde solicitada':false,'Unimed Saúde confirmada':false,'Odonto verificado':false,'Odonto solicitado':false,'Odonto confirmado':false,'Descontos cadastrados':false,'Documentação anexada':false,'Processo finalizado':false},
+      checklistDesligamento:null,
+      historico:[{data:vals.admissao, tipo:'Admissão', desc:`Admitido(a) como ${vals.cargo}.`}],
+      documentos:[]
+    };
+    DATA.empregados.push(novo);
+  }
+  persist(); closeModal(); toast('Empregado salvo.'); render();
+  return false;
+}
+
+function viewEmpregadoDetail(){
+  const f = empregadoById(VIEW.empregadoId);
+  if(!f) return `<p>Empregado não encontrado.</p>`;
+  const e = empresaById(f.empresaId);
+  const tabs = [['dados','Dados básicos'],['beneficios','Benefícios'],['particularidades','Particularidades'],['checklist','Checklists'],['historico','Histórico'],['documentos','Documentos']];
+  const tab = VIEW.empregadoTab||'dados';
+  let body='';
+  if(tab==='dados') body = tabEmpDados(f,e);
+  else if(tab==='beneficios') body = tabEmpBeneficios(f);
+  else if(tab==='particularidades') body = tabEmpParticularidades(f);
+  else if(tab==='checklist') body = tabEmpChecklist(f);
+  else if(tab==='historico') body = tabEmpHistorico(f);
+  else if(tab==='documentos') body = tabEmpDocumentos(f);
+
+  return `
+    <div class="crumb"><span onclick="go('empresas')">Empresas</span> / <span onclick="go('empresaDetail',{empresaId:'${e.id}',empresaTab:'pessoas'})">${esc(e.nomeFantasia)}</span> / ${esc(f.nome)}</div>
+    <div class="detail-head">
+      <div>
+        <div class="detail-title">${esc(f.nome)}</div>
+        <div class="detail-meta">${esc(f.cargo)} · ${esc(e.nomeFantasia)} · ${badge(f.status)}</div>
+      </div>
+      <div style="display:flex;gap:8px;">
+        <button class="btn" onclick="openModalEmpregado('${f.id}')">Editar dados</button>
+        ${f.status==='Ativo'?`<button class="btn btn-danger" onclick="startDesligamento('${f.id}')">Registrar desligamento</button>`:''}
+      </div>
+    </div>
+    <div class="tabs">${tabs.map(([k,l])=>`<div class="tab ${tab===k?'active':''}" onclick="go('empregadoDetail',{empregadoId:'${f.id}',empresaId:'${e.id}',empregadoTab:'${k}'})">${l}</div>`).join('')}</div>
+    ${body}
+  `;
+}
+function startDesligamento(id){
+  const f = empregadoById(id);
+  if(!confirm(`Confirmar desligamento de ${f.nome}? O histórico será mantido — apenas o status muda para Desligado.`)) return;
+  const today = new Date().toISOString().slice(0,10);
+  f.status = 'Desligado';
+  f.desligamentoData = today;
+  f.checklistDesligamento = {'Rescisão processada':false,'eSocial enviado':false,'VT encerrado':false,'Vale-alimentação encerrado':false,'Exclusões de benefícios':false,'Pagamentos extras revisados':false,'Descontos recorrentes encerrados':false,'Documentação anexada':false,'Processo finalizado':false};
+  f.historico = f.historico||[];
+  f.historico.push({data:today, tipo:'Desligamento', desc:'Desligamento registrado. Checklist de desligamento iniciado.'});
+  persist(); toast('Desligamento registrado. Histórico preservado.'); go('empregadoDetail',{empregadoId:id,empresaId:f.empresaId,empregadoTab:'checklist'});
+}
+
+function tabEmpDados(f,e){
+  return `
+    <div class="two-col">
+      <div class="panel">
+        <div class="section-title">Dados básicos</div>
+        <dl class="kv">
+          <dt>Empresa</dt><dd>${esc(e.nomeFantasia)}</dd>
+          <dt>Cargo</dt><dd>${esc(f.cargo)}</dd>
+          <dt>Admissão</dt><dd class="mono">${dateBR(f.admissao)}</dd>
+          <dt>Salário</dt><dd class="tnum">${money(f.salario)}</dd>
+          <dt>Status</dt><dd>${badge(f.status)}</dd>
+          ${f.status==='Desligado'?`<dt>Desligamento</dt><dd class="mono">${dateBR(f.desligamentoData)}</dd>`:''}
+        </dl>
+      </div>
+      <div class="panel">
+        <div class="section-title">Resumo de benefícios</div>
+        <dl class="kv">
+          <dt>Vale-transporte</dt><dd>${f.beneficios.vt.recebe?'Sim, recarga dia '+f.beneficios.vt.dataRecarga:'Não recebe'}</dd>
+          <dt>Vale-alimentação</dt><dd>${f.beneficios.va.recebe?money(f.beneficios.va.valor):'Não recebe'}</dd>
+          <dt>Unimed Saúde</dt><dd>${benefFlowBadge(f.beneficios.unimedSaude)}</dd>
+          <dt>Unimed Odonto</dt><dd>${benefFlowBadge(f.beneficios.unimedOdonto)}</dd>
+        </dl>
+      </div>
+    </div>
+  `;
+}
+
+function tabEmpBeneficios(f){
+  return `
+    <div class="panel">
+      <h2>Vale-transporte</h2>
+      <div class="formgrid">
+        <div class="field"><label>Recebe VT?</label><select onchange="updVtRecebe('${f.id}',this.value)"><option value="sim" ${f.beneficios.vt.recebe?'selected':''}>Sim</option><option value="nao" ${!f.beneficios.vt.recebe?'selected':''}>Não</option></select></div>
+        ${f.beneficios.vt.recebe?`<div class="field"><label>Dia de recarga mensal</label><input type="number" min="1" max="28" value="${f.beneficios.vt.dataRecarga}" onchange="updVtDia('${f.id}',this.value)"></div>`:''}
+      </div>
+    </div>
+    <div class="panel">
+      <h2>Vale-alimentação</h2>
+      <div class="formgrid">
+        <div class="field"><label>Recebe?</label><select onchange="updVaRecebe('${f.id}',this.value)"><option value="sim" ${f.beneficios.va.recebe?'selected':''}>Sim</option><option value="nao" ${!f.beneficios.va.recebe?'selected':''}>Não</option></select></div>
+        <div class="field"><label>Valor mensal (R$)</label><input type="number" step="0.01" value="${f.beneficios.va.valor}" onchange="updVaValor('${f.id}',this.value)"></div>
+        <div class="field full"><label>Observação</label><input value="${esc(f.beneficios.va.obs)}" onchange="updVaObs('${f.id}',this.value)"></div>
+      </div>
+      <div class="section-title" style="margin-top:14px;">Histórico de alterações de valor</div>
+      ${(f.beneficios.va.historico||[]).length===0?'<p class="hint">Sem alterações registradas.</p>':`
+      <table><thead><tr><th>Data</th><th>Valor</th><th>Evento</th></tr></thead><tbody>
+      ${f.beneficios.va.historico.map(h=>`<tr><td class="mono">${dateBR(h.data)}</td><td class="tnum">${money(h.valor)}</td><td>${esc(h.evento)}</td></tr>`).join('')}
+      </tbody></table>`}
+    </div>
+    <div class="panel">
+      <h2>Planos de saúde</h2>
+      <div class="formgrid">
+        <div class="field"><label>Unimed Saúde</label><select onchange="updBenefFlow('${f.id}','unimedSaude',this.value)">
+          ${['—','Solicita/tem direito','Inclusão necessária','Solicitação enviada','Aguardando operadora','Confirmada','Ativo — pendente exclusão','Exclusão solicitada','Exclusão confirmada'].map(s=>`<option ${f.beneficios.unimedSaude.status===s?'selected':''}>${s}</option>`).join('')}
+        </select></div>
+        <div class="field"><label>Unimed Odonto</label><select onchange="updBenefFlow('${f.id}','unimedOdonto',this.value)">
+          ${['—','Solicita/tem direito','Inclusão necessária','Solicitação enviada','Aguardando operadora','Confirmada','Ativo — pendente exclusão','Exclusão solicitada','Exclusão confirmada'].map(s=>`<option ${f.beneficios.unimedOdonto.status===s?'selected':''}>${s}</option>`).join('')}
+        </select></div>
+      </div>
+      <p class="hint">Alterar o status marca automaticamente "contratado" quando diferente de "—".</p>
+    </div>
+  `;
+}
+function refreshEmpTab(id){ render(); }
+function updVtRecebe(id,v){ empregadoById(id).beneficios.vt.recebe = v==='sim'; persist(); refreshEmpTab(id); }
+function updVtDia(id,v){ empregadoById(id).beneficios.vt.dataRecarga = parseInt(v,10)||1; persist(); }
+function updVaRecebe(id,v){ empregadoById(id).beneficios.va.recebe = v==='sim'; persist(); refreshEmpTab(id); }
+function updVaValor(id,v){
+  const f = empregadoById(id); const novo = parseFloat(v)||0;
+  if(novo !== f.beneficios.va.valor){
+    f.beneficios.va.historico = f.beneficios.va.historico||[];
+    f.beneficios.va.historico.push({data:new Date().toISOString().slice(0,10), valor:novo, evento:'Alteração manual de valor'});
+  }
+  f.beneficios.va.valor = novo; persist(); refreshEmpTab(id);
+}
+function updVaObs(id,v){ empregadoById(id).beneficios.va.obs = v; persist(); }
+function updBenefFlow(id,key,v){
+  const f = empregadoById(id);
+  f.beneficios[key].status = v;
+  f.beneficios[key].contratado = v !== '—';
+  persist(); toast('Status do benefício atualizado.'); refreshEmpTab(id);
+}
+
+function tabEmpParticularidades(f){
+  return `
+    <div class="panel">
+      <h2>Particularidades <button class="btn btn-sm" onclick="openModalParticularidades('${f.id}')">Editar</button></h2>
+      <dl class="kv">
+        <dt>Gratificações fixas</dt><dd>${esc(f.particularidades.gratificacoesFixas)||'—'}</dd>
+        <dt>Prêmios variáveis</dt><dd>${esc(f.particularidades.premiosVariaveis)||'—'}</dd>
+        <dt>Observações</dt><dd>${esc(f.particularidades.observacoes)||'—'}</dd>
+      </dl>
+    </div>
+  `;
+}
+function openModalParticularidades(id){
+  const f = empregadoById(id); const p = f.particularidades;
+  showModal(`
+    <h3>Particularidades — ${esc(f.nome)}</h3>
+    <form onsubmit="return saveParticularidades(event,'${id}')">
+      <div class="formgrid">
+        <div class="field full"><label>Gratificações fixas</label><textarea name="gratificacoesFixas">${esc(p.gratificacoesFixas)}</textarea></div>
+        <div class="field full"><label>Prêmios variáveis</label><textarea name="premiosVariaveis">${esc(p.premiosVariaveis)}</textarea></div>
+        <div class="field full"><label>Observações</label><textarea name="observacoes">${esc(p.observacoes)}</textarea></div>
+      </div>
+      <div class="modal-actions"><button type="button" class="btn" onclick="closeModal()">Cancelar</button><button type="submit" class="btn btn-primary">Salvar</button></div>
+    </form>
+  `);
+}
+function saveParticularidades(ev,id){
+  ev.preventDefault();
+  empregadoById(id).particularidades = Object.fromEntries(new FormData(ev.target).entries());
+  persist(); closeModal(); toast('Particularidades atualizadas.'); render();
+  return false;
+}
+
+function tabEmpChecklist(f){
+  const admPct = pct(f.checklistAdmissao);
+  const deslPct = f.checklistDesligamento?pct(f.checklistDesligamento):null;
+  return `
+    <div class="panel">
+      <h2>Checklist de admissão</h2>
+      <div class="checklist-progress"><div class="checklist-progress-bar" style="width:${admPct}%;"></div></div>
+      <ul class="checklist">
+        ${Object.entries(f.checklistAdmissao).map(([k,v])=>`
+          <li class="${v?'done':''}"><input type="checkbox" ${v?'checked':''} onchange="toggleChecklist('${f.id}','checklistAdmissao','${escAttr(k)}',this.checked)"><span class="cl-label">${esc(k)}</span></li>
+        `).join('')}
+      </ul>
+    </div>
+    ${f.checklistDesligamento?`
+    <div class="panel">
+      <h2>Checklist de desligamento</h2>
+      <div class="checklist-progress"><div class="checklist-progress-bar" style="width:${deslPct}%;background:var(--brick);"></div></div>
+      <ul class="checklist">
+        ${Object.entries(f.checklistDesligamento).map(([k,v])=>`
+          <li class="${v?'done':''}"><input type="checkbox" ${v?'checked':''} onchange="toggleChecklist('${f.id}','checklistDesligamento','${escAttr(k)}',this.checked)"><span class="cl-label">${esc(k)}</span></li>
+        `).join('')}
+      </ul>
+    </div>`:`<p class="hint">Sem processo de desligamento em andamento.</p>`}
+  `;
+}
+function escAttr(s){ return String(s).replace(/'/g,"\\'"); }
+function pct(obj){ const vals = Object.values(obj); return Math.round(100*vals.filter(Boolean).length/vals.length); }
+function toggleChecklist(id, which, key, checked){
+  const f = empregadoById(id);
+  f[which][key] = checked;
+  const allDone = Object.values(f[which]).every(Boolean);
+  if(allDone && key !== 'Processo finalizado'){ /* leave manual control of final item */ }
+  persist(); render();
+}
+
+function tabEmpHistorico(f){
+  return `
+    <div class="panel">
+      <h2>Histórico do empregado</h2>
+      ${(!f.historico || f.historico.length===0)?'<p class="hint">Sem eventos registrados.</p>':`
+      <ul class="timeline">
+        ${[...f.historico].sort((a,b)=>a.data<b.data?1:-1).map(h=>`<li><div class="tdate">${dateBR(h.data)} · ${esc(h.tipo)}</div><div class="tdesc">${esc(h.desc)}</div></li>`).join('')}
+      </ul>`}
+    </div>
+  `;
+}
+
+function tabEmpDocumentos(f){
+  return `
+    <div class="panel">
+      <h2>Documentos <button class="btn btn-sm" onclick="openModalDocEmp('${f.id}')">+ Anexar</button></h2>
+      ${(!f.documentos||f.documentos.length===0)?'<p class="hint">Nenhum documento anexado.</p>':f.documentos.map(d=>`
+        <div class="doc-row"><div class="doc-icon">DOC</div><div style="flex:1;"><strong>${esc(d.nome)}</strong><div class="hint">${esc(d.categoria)} · ${dateBR(d.data)}</div></div>
+        <button class="icon-btn" onclick="deleteDocEmp('${f.id}','${d.id}')">✕</button></div>
+      `).join('')}
+    </div>
+  `;
+}
+function openModalDocEmp(empregadoId){
+  showModal(`
+    <h3>Anexar documento</h3>
+    <form onsubmit="return saveDocEmp(event,'${empregadoId}')">
+      <div class="formgrid">
+        <div class="field full"><label>Nome do arquivo</label><input required name="nome" placeholder="Ex: Comprovante_Unimed.pdf"></div>
+        <div class="field"><label>Categoria</label><input required name="categoria" placeholder="Ex: Comprovante, Formulário..."></div>
+        <div class="field"><label>Data</label><input required type="date" name="data" value="${new Date().toISOString().slice(0,10)}"></div>
+      </div>
+      <div class="modal-actions"><button type="button" class="btn" onclick="closeModal()">Cancelar</button><button type="submit" class="btn btn-primary">Salvar</button></div>
+    </form>
+  `);
+}
+function saveDocEmp(ev,empregadoId){
+  ev.preventDefault();
+  const vals = Object.fromEntries(new FormData(ev.target).entries());
+  const f = empregadoById(empregadoId);
+  f.documentos = f.documentos||[];
+  f.documentos.push(Object.assign({id:newId('fd')}, vals));
+  persist(); closeModal(); toast('Documento anexado.'); render();
+  return false;
+}
+function deleteDocEmp(empregadoId, docId){
+  if(!confirm('Remover este documento?')) return;
+  const f = empregadoById(empregadoId);
+  f.documentos = f.documentos.filter(d=>d.id!==docId); persist(); render();
+}
+
+/* ============================= SÓCIOS ============================= */
+function viewSocios(){
+  return `
+    <div class="pagehead">
+      <div><h1>Sócios &amp; distribuição de lucros</h1><div class="sub">Consolidado de todas as empresas.</div></div>
+    </div>
+    <div class="panel">
+      <h2>Sócios cadastrados</h2>
+      <table><thead><tr><th>Nome</th><th>Empresa</th><th>Status</th><th>Pró-labore</th><th>Distribui lucros?</th><th>Regra</th></tr></thead><tbody>
+      ${DATA.socios.map(s=>{
+        const e = empresaById(s.empresaId);
+        return `<tr class="clickable" onclick="openModalSocio('${s.id}')">
+          <td>${esc(s.nome)}</td><td>${esc(e?e.nomeFantasia:'—')}</td><td>${badge(s.status)}</td>
+          <td class="tnum">${money(s.proLabore)}</td><td>${s.distribuiLucros?'Sim':'Não'}</td><td>${esc(s.regra)||'—'}</td>
+        </tr>`;
+      }).join('') || `<tr class="empty-row"><td colspan="6">Nenhum sócio cadastrado.</td></tr>`}
+      </tbody></table>
+    </div>
+    <div class="panel">
+      <h2>Distribuições de lucro <button class="btn btn-sm btn-primary" onclick="openModalDistribuicao()">+ Nova distribuição</button></h2>
+      <table><thead><tr><th>Sócio</th><th>Empresa</th><th>Competência</th><th>Valor</th><th>Status</th></tr></thead><tbody>
+      ${DATA.distribuicoes.map(d=>{
+        const s = socioById(d.socioId); const e = s?empresaById(s.empresaId):null;
+        return `<tr>
+          <td>${esc(s?s.nome:'—')}</td><td>${esc(e?e.nomeFantasia:'—')}</td><td class="mono">${competenciaBR(d.competencia)}</td>
+          <td class="tnum">${money(d.valor)}</td>
+          <td><select onchange="updDistStatus('${d.id}',this.value)">${['Pendente','Pago'].map(st=>`<option ${d.status===st?'selected':''}>${st}</option>`).join('')}</select></td>
+        </tr>`;
+      }).join('') || `<tr class="empty-row"><td colspan="5">Nenhuma distribuição cadastrada.</td></tr>`}
+      </tbody></table>
+    </div>
+  `;
+}
+function updDistStatus(id,status){ DATA.distribuicoes.find(d=>d.id===id).status=status; persist(); toast('Status atualizado.'); render(); }
+function openModalSocio(id, empresaIdDefault){
+  const s = id?socioById(id):null;
+  const empresaId = s?s.empresaId:empresaIdDefault;
+  showModal(`
+    <h3>${s?'Editar sócio':'Novo sócio'}</h3>
+    <form onsubmit="return saveSocio(event,'${id||''}','${empresaId||''}')">
+      <div class="formgrid">
+        <div class="field full"><label>Nome</label><input required name="nome" value="${esc(s?s.nome:'')}"></div>
+        ${!empresaId?`<div class="field full"><label>Empresa</label><select name="empresaId">${DATA.empresas.map(e=>`<option value="${e.id}">${esc(e.nomeFantasia)}</option>`).join('')}</select></div>`:''}
+        <div class="field"><label>Status</label><select name="status">${['Ativo','Ativa','Inativo'].map(st=>`<option ${s&&s.status===st?'selected':''}>${st}</option>`).join('')}</select></div>
+        <div class="field"><label>Pró-labore (R$)</label><input required type="number" step="0.01" name="proLabore" value="${s?s.proLabore:''}"></div>
+        <div class="field"><label>Distribui lucros?</label><select name="distribuiLucros"><option value="sim" ${s&&s.distribuiLucros?'selected':''}>Sim</option><option value="nao" ${s&&!s.distribuiLucros?'selected':''}>Não</option></select></div>
+        <div class="field"><label>Valor de referência</label><input name="valor" value="${s?s.valor:''}"></div>
+        <div class="field full"><label>Regra de distribuição</label><input name="regra" value="${esc(s?s.regra:'')}"></div>
+        <div class="field full"><label>Observações</label><textarea name="observacoes">${esc(s?s.observacoes:'')}</textarea></div>
+      </div>
+      <div class="modal-actions"><button type="button" class="btn" onclick="closeModal()">Cancelar</button><button type="submit" class="btn btn-primary">Salvar</button></div>
+    </form>
+  `);
+}
+function saveSocio(ev,id,empresaId){
+  ev.preventDefault();
+  const vals = Object.fromEntries(new FormData(ev.target).entries());
+  vals.proLabore = parseFloat(vals.proLabore)||0;
+  vals.distribuiLucros = vals.distribuiLucros==='sim';
+  if(!vals.empresaId) vals.empresaId = empresaId;
+  if(id) Object.assign(socioById(id), vals);
+  else DATA.socios.push(Object.assign({id:newId('s')}, vals));
+  persist(); closeModal(); toast('Sócio salvo.'); render();
+  return false;
+}
+function openModalDistribuicao(){
+  showModal(`
+    <h3>Nova distribuição</h3>
+    <form onsubmit="return saveDistribuicao(event)">
+      <div class="formgrid">
+        <div class="field full"><label>Sócio</label><select name="socioId" required>${DATA.socios.map(s=>`<option value="${s.id}">${esc(s.nome)} — ${esc((empresaById(s.empresaId)||{}).nomeFantasia||'')}</option>`).join('')}</select></div>
+        <div class="field"><label>Competência</label><input required name="competencia" value="${DATA.meta.competenciaAtual}" placeholder="AAAA-MM"></div>
+        <div class="field"><label>Valor (R$)</label><input required type="number" step="0.01" name="valor"></div>
+        <div class="field"><label>Status</label><select name="status">${['Pendente','Pago'].map(s=>`<option>${s}</option>`).join('')}</select></div>
+      </div>
+      <div class="modal-actions"><button type="button" class="btn" onclick="closeModal()">Cancelar</button><button type="submit" class="btn btn-primary">Salvar</button></div>
+    </form>
+  `);
+}
+function saveDistribuicao(ev){
+  ev.preventDefault();
+  const vals = Object.fromEntries(new FormData(ev.target).entries());
+  vals.valor = parseFloat(vals.valor)||0;
+  DATA.distribuicoes.push(Object.assign({id:newId('d')}, vals));
+  persist(); closeModal(); toast('Distribuição registrada.'); render();
+  return false;
+}
+
+/* ============================= MOVIMENTAÇÕES (CENTRAL) ============================= */
+function viewMovimentacoes(){
+  const filtroEmpresa = VIEW.filtroEmpresa||'';
+  const filtroStatus = VIEW.filtroStatus||'';
+  let movs = DATA.movimentacoes.slice().sort((a,b)=> a.competencia<b.competencia?1:-1);
+  if(filtroEmpresa) movs = movs.filter(m=>m.empresaId===filtroEmpresa);
+  if(filtroStatus) movs = movs.filter(m=>m.status===filtroStatus);
+  return `
+    <div class="pagehead">
+      <div><h1>Central de movimentações mensais</h1><div class="sub">Checklist operacional de fechamento — funciona em paralelo à folha de pagamento.</div></div>
+      <button class="btn btn-primary" onclick="openModalMovimentacao(null, DATA.empresas[0] && DATA.empresas[0].id)">+ Nova movimentação</button>
+    </div>
+    <div class="filterbar">
+      <select onchange="setFiltroMov('empresa',this.value)">
+        <option value="">Todas as empresas</option>
+        ${DATA.empresas.map(e=>`<option value="${e.id}" ${filtroEmpresa===e.id?'selected':''}>${esc(e.nomeFantasia)}</option>`).join('')}
+      </select>
+      <select onchange="setFiltroMov('status',this.value)">
+        <option value="">Todos os status</option>
+        ${['Pendente','Conferido','Lançado','Finalizado'].map(s=>`<option ${filtroStatus===s?'selected':''}>${s}</option>`).join('')}
+      </select>
+    </div>
+    <div class="panel">
+      <table><thead><tr><th>Empregado</th><th>Empresa</th><th>Tipo</th><th>Valor</th><th>Competência</th><th>Status</th><th></th></tr></thead><tbody>
+      ${movs.map(m=>{
+        const f = empregadoById(m.empregadoId), emp = empresaById(m.empresaId);
+        return `<tr>
+          <td>${esc(f?f.nome:'—')}</td><td>${esc(emp?emp.nomeFantasia:'—')}</td><td>${esc(m.tipo)}</td><td class="tnum">${money(m.valor)}</td><td class="mono">${competenciaBR(m.competencia)}</td>
+          <td><select onchange="advanceMov('${m.id}',this.value)">${['Pendente','Conferido','Lançado','Finalizado'].map(s=>`<option ${m.status===s?'selected':''}>${s}</option>`).join('')}</select></td>
+          <td><button class="icon-btn" onclick="deleteMov('${m.id}')">✕</button></td>
+        </tr>`;
+      }).join('') || `<tr class="empty-row"><td colspan="7">Nenhuma movimentação encontrada.</td></tr>`}
+      </tbody></table>
+    </div>
+  `;
+}
+function setFiltroMov(which,val){ if(which==='empresa') VIEW.filtroEmpresa=val; else VIEW.filtroStatus=val; renderMain(); }
+
+/* ============================= BENEFÍCIOS (GLOBAL) ============================= */
+function viewBeneficios(){
+  const emps = DATA.empregados;
+  const inclusoes = emps.filter(f=>f.status==='Ativo' && ((f.beneficios.unimedSaude.contratado && !/confirmad/i.test(f.beneficios.unimedSaude.status)) || (f.beneficios.unimedOdonto.contratado && !/confirmad/i.test(f.beneficios.unimedOdonto.status))));
+  const exclusoes = emps.filter(f=>f.status==='Desligado' && ((f.beneficios.unimedSaude.contratado && !/exclu[íi]da|encerrad/i.test(f.beneficios.unimedSaude.status)) || (f.beneficios.unimedOdonto.contratado && !/exclu[íi]da|encerrad/i.test(f.beneficios.unimedOdonto.status))));
+  const vtAtivos = emps.filter(f=>f.status==='Ativo' && f.beneficios.vt.recebe);
+  const vaAtivos = emps.filter(f=>f.status==='Ativo' && f.beneficios.va.recebe);
+
+  return `
+    <div class="pagehead"><div><h1>Gestão de benefícios</h1><div class="sub">Fluxo de inclusão e exclusão em todas as empresas.</div></div></div>
+    <div class="grid grid-3" style="margin-bottom:16px;">
+      <div class="stat-card ${exclusoes.length?'flag':''}" onclick="void(0)"><div class="num">${exclusoes.length}</div><div class="lbl">Exclusões pendentes (desligados)</div></div>
+      <div class="stat-card ${inclusoes.length?'flag':''}"><div class="num">${inclusoes.length}</div><div class="lbl">Inclusões em andamento</div></div>
+      <div class="stat-card ok"><div class="num">${vtAtivos.length}</div><div class="lbl">VT ativos · ${vaAtivos.length} VA ativos</div></div>
+    </div>
+
+    ${exclusoes.length?`
+    <div class="panel">
+      <h2>⚠ Exclusões críticas — desligados com benefício ainda ativo</h2>
+      <table><thead><tr><th>Empregado</th><th>Empresa</th><th>Desligamento</th><th>Unimed Saúde</th><th>Unimed Odonto</th></tr></thead><tbody>
+      ${exclusoes.map(f=>{
+        const e=empresaById(f.empresaId);
+        return `<tr class="clickable" onclick="go('empregadoDetail',{empregadoId:'${f.id}',empresaId:'${e.id}',empregadoTab:'beneficios'})">
+          <td>${esc(f.nome)}</td><td>${esc(e.nomeFantasia)}</td><td class="mono">${dateBR(f.desligamentoData)}</td>
+          <td>${benefFlowBadge(f.beneficios.unimedSaude)}</td><td>${benefFlowBadge(f.beneficios.unimedOdonto)}</td>
+        </tr>`;
+      }).join('')}
+      </tbody></table>
+    </div>`:''}
+
+    <div class="panel">
+      <h2>Inclusões em andamento</h2>
+      ${inclusoes.length===0?'<p class="hint">Nenhuma inclusão pendente.</p>':`
+      <table><thead><tr><th>Empregado</th><th>Empresa</th><th>Unimed Saúde</th><th>Unimed Odonto</th></tr></thead><tbody>
+      ${inclusoes.map(f=>{
+        const e=empresaById(f.empresaId);
+        return `<tr class="clickable" onclick="go('empregadoDetail',{empregadoId:'${f.id}',empresaId:'${e.id}',empregadoTab:'beneficios'})">
+          <td>${esc(f.nome)}</td><td>${esc(e.nomeFantasia)}</td>
+          <td>${benefFlowBadge(f.beneficios.unimedSaude)}</td><td>${benefFlowBadge(f.beneficios.unimedOdonto)}</td>
+        </tr>`;
+      }).join('')}
+      </tbody></table>`}
+    </div>
+
+    <div class="two-col">
+      <div class="panel">
+        <h2>Vale-transporte — ativos</h2>
+        <table><thead><tr><th>Empregado</th><th>Empresa</th><th>Recarga</th></tr></thead><tbody>
+        ${vtAtivos.map(f=>`<tr><td>${esc(f.nome)}</td><td>${esc(empresaById(f.empresaId).nomeFantasia)}</td><td class="mono">dia ${f.beneficios.vt.dataRecarga}</td></tr>`).join('') || `<tr class="empty-row"><td colspan="3">Nenhum.</td></tr>`}
+        </tbody></table>
+      </div>
+      <div class="panel">
+        <h2>Vale-alimentação — ativos</h2>
+        <table><thead><tr><th>Empregado</th><th>Empresa</th><th>Valor</th></tr></thead><tbody>
+        ${vaAtivos.map(f=>`<tr><td>${esc(f.nome)}</td><td>${esc(empresaById(f.empresaId).nomeFantasia)}</td><td class="tnum">${money(f.beneficios.va.valor)}</td></tr>`).join('') || `<tr class="empty-row"><td colspan="3">Nenhum.</td></tr>`}
+        </tbody></table>
+      </div>
+    </div>
+  `;
+}
+
+/* ============================= PENDÊNCIAS ============================= */
+function viewPendencias(){
+  const filtroEmpresa = VIEW.pFiltroEmpresa||'';
+  const filtroTipo = VIEW.pFiltroTipo||'';
+  const filtroStatus = VIEW.pFiltroStatus||'';
+  let pend = computePendencias();
+  if(filtroEmpresa) pend = pend.filter(p=>p.empresaId===filtroEmpresa);
+  if(filtroTipo) pend = pend.filter(p=>p.tipo===filtroTipo);
+  if(filtroStatus) pend = pend.filter(p=>p.status===filtroStatus);
+  pend.sort((a,b)=> (a.status==='Urgente'?0:1) - (b.status==='Urgente'?0:1));
+  const tipos = [...new Set(computePendencias().map(p=>p.tipo))];
+
+  return `
+    <div class="pagehead">
+      <div><h1>Central de pendências</h1><div class="sub">Visão consolidada de itens críticos e próximos vencimentos.</div></div>
+      <button class="btn btn-primary" onclick="openModalPendencia()">+ Pendência manual</button>
+    </div>
+    <div class="filterbar">
+      <select onchange="setFiltroPend('empresa',this.value)"><option value="">Todas as empresas</option>${DATA.empresas.map(e=>`<option value="${e.id}" ${filtroEmpresa===e.id?'selected':''}>${esc(e.nomeFantasia)}</option>`).join('')}</select>
+      <select onchange="setFiltroPend('tipo',this.value)"><option value="">Todos os tipos</option>${tipos.map(t=>`<option ${filtroTipo===t?'selected':''}>${esc(t)}</option>`).join('')}</select>
+      <select onchange="setFiltroPend('status',this.value)"><option value="">Todos os status</option>${['Urgente','Aberta'].map(s=>`<option ${filtroStatus===s?'selected':''}>${s}</option>`).join('')}</select>
+    </div>
+    <div class="panel">${renderPendTable(pend, true)}</div>
+    <div class="panel">
+      <h2>Próximos vencimentos — recarga de VT</h2>
+      <ul class="checklist" style="border-top:1px solid var(--line-soft);">
+      ${proximasRecargasVT().map(r=>`<li><span class="cl-label">${esc(r.empregado)} — ${esc(r.empresa)}</span><span class="mono" style="font-size:12px;color:var(--ink-soft);">dia ${r.dia}</span></li>`).join('') || '<li class="hint">Nenhuma recarga programada.</li>'}
+      </ul>
+    </div>
+  `;
+}
+function setFiltroPend(which,val){
+  if(which==='empresa') VIEW.pFiltroEmpresa=val;
+  else if(which==='tipo') VIEW.pFiltroTipo=val;
+  else VIEW.pFiltroStatus=val;
+  renderMain();
+}
+function renderPendTable(pend, allowDelete){
+  if(pend.length===0) return `<p class="hint">Nenhuma pendência encontrada.</p>`;
+  return `<table><thead><tr><th>Status</th><th>Empresa</th><th>Tipo</th><th>Descrição</th><th>Prazo</th>${allowDelete?'<th></th>':''}</tr></thead><tbody>
+    ${pend.map(p=>{
+      const e = empresaById(p.empresaId);
+      const dleft = p.prazo?daysUntil(p.prazo):null;
+      return `<tr class="clickable" onclick="${p.empregadoId?`go('empregadoDetail',{empregadoId:'${p.empregadoId}',empresaId:'${p.empresaId}',empregadoTab:'dados'})`:(p.empresaId?`go('empresaDetail',{empresaId:'${p.empresaId}',empresaTab:'pendencias'})`:'')}">
+        <td>${badge(p.status)}</td><td>${esc(e?e.nomeFantasia:'—')}</td><td>${esc(p.tipo)}</td><td>${esc(p.descricao)}</td>
+        <td class="mono">${p.prazo?dateBR(p.prazo)+(dleft!==null?` <span style="color:${dleft<0?'var(--brick)':'var(--slate)'}">(${dleft<0?Math.abs(dleft)+'d atraso':dleft+'d'})</span>`:''):'—'}</td>
+        ${allowDelete?`<td>${p.auto?'':`<button class="icon-btn" onclick="event.stopPropagation();deletePendManual('${p.id}')">✕</button>`}</td>`:''}
+      </tr>`;
+    }).join('')}
+  </tbody></table>`;
+}
+function openModalPendencia(){
+  showModal(`
+    <h3>Nova pendência manual</h3>
+    <form onsubmit="return savePendencia(event)">
+      <div class="formgrid">
+        <div class="field full"><label>Empresa</label><select name="empresaId" required>${DATA.empresas.map(e=>`<option value="${e.id}">${esc(e.nomeFantasia)}</option>`).join('')}</select></div>
+        <div class="field"><label>Tipo</label><input required name="tipo" placeholder="Ex: Documento, Solicitação..."></div>
+        <div class="field"><label>Status</label><select name="status">${['Aberta','Urgente'].map(s=>`<option>${s}</option>`).join('')}</select></div>
+        <div class="field full"><label>Descrição</label><textarea required name="descricao"></textarea></div>
+        <div class="field"><label>Prazo</label><input type="date" name="prazo"></div>
+      </div>
+      <div class="modal-actions"><button type="button" class="btn" onclick="closeModal()">Cancelar</button><button type="submit" class="btn btn-primary">Salvar</button></div>
+    </form>
+  `);
+}
+function savePendencia(ev){
+  ev.preventDefault();
+  const vals = Object.fromEntries(new FormData(ev.target).entries());
+  DATA.pendenciasManuais.push(Object.assign({id:newId('p'), empregadoId:null}, vals));
+  persist(); closeModal(); toast('Pendência registrada.'); render();
+  return false;
+}
+function deletePendManual(id){
+  if(!confirm('Remover esta pendência?')) return;
+  DATA.pendenciasManuais = DATA.pendenciasManuais.filter(p=>p.id!==id); persist(); render();
+}
+
+/* ============================= DOCUMENTOS (GLOBAL) ============================= */
+function viewDocumentos(){
+  const empDocs = DATA.documentosEmpresa.map(d=>Object.assign({}, d, {origem:'Empresa', origemNome:(empresaById(d.empresaId)||{}).nomeFantasia}));
+  const funcDocs = [];
+  DATA.empregados.forEach(f=> (f.documentos||[]).forEach(d=> funcDocs.push(Object.assign({}, d, {origem:'Empregado', origemNome:f.nome, empresaId:f.empresaId}))));
+  const all = [...empDocs, ...funcDocs].sort((a,b)=> a.data<b.data?1:-1);
+  return `
+    <div class="pagehead"><div><h1>Documentos</h1><div class="sub">Todos os anexos — empresas e empregados.</div></div></div>
+    <div class="panel">
+      <table><thead><tr><th>Arquivo</th><th>Categoria</th><th>Vinculado a</th><th>Empresa</th><th>Data</th></tr></thead><tbody>
+      ${all.map(d=>{
+        const e = empresaById(d.empresaId);
+        return `<tr><td><strong>${esc(d.nome)}</strong></td><td>${esc(d.categoria)}</td><td>${d.origem} — ${esc(d.origemNome)}</td><td>${esc(e?e.nomeFantasia:'—')}</td><td class="mono">${dateBR(d.data)}</td></tr>`;
+      }).join('') || `<tr class="empty-row"><td colspan="5">Nenhum documento anexado ainda.</td></tr>`}
+      </tbody></table>
+    </div>
+  `;
+}
+
+/* ============================= MODAL SHELL ============================= */
+function showModal(html, wide){
+  const bd = document.createElement('div');
+  bd.className='modal-backdrop'; bd.id='modalBackdrop';
+  bd.onclick = (e)=>{ if(e.target===bd) closeModal(); };
+  bd.innerHTML = `<div class="modal ${wide?'wide':''}">${html}</div>`;
+  document.body.appendChild(bd);
+  document.addEventListener('keydown', escCloser);
+}
+function escCloser(e){ if(e.key==='Escape') closeModal(); }
+function closeModal(){
+  const bd = document.getElementById('modalBackdrop');
+  if(bd) bd.remove();
+  document.removeEventListener('keydown', escCloser);
+}
+
+/* ============================= INIT ============================= */
+render();
+</script>
+</body>
+</html>
