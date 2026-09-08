@@ -607,7 +607,7 @@ function viewEmpresas(){
       </div>
     </div>
     <div class="panel" style="padding:0;">
-      <table><thead><tr><th>Razão social</th><th>CNPJ</th><th>Responsável</th><th>Empregados ativos</th><th>Pendências</th><th>Pagamento</th></tr></thead><tbody>
+      <table><thead><tr><th>Razão social</th><th>CNPJ</th><th>Responsável</th><th>Empregados ativos</th><th>Pendências</th><th>Pagamento</th><th></th></tr></thead><tbody>
       ${DATA.empresas.map(e=>{
         const ativos = empregadosDe(e.id).filter(f=>f.status==='Ativo').length;
         const pendCount = computePendencias().filter(p=>p.empresaId===e.id).length;
@@ -618,8 +618,9 @@ function viewEmpresas(){
           <td class="tnum">${ativos}</td>
           <td>${pendCount>0?`<span class="badge badge-urgente">${pendCount}</span>`:`<span class="badge badge-finalizado">0</span>`}</td>
           <td>dia ${e.diaPagamento}</td>
+          <td><button class="icon-btn" title="Excluir empresa" onclick="event.stopPropagation();deleteEmpresa('${e.id}')">✕</button></td>
         </tr>`;
-      }).join('') || `<tr class="empty-row"><td colspan="6">Nenhuma empresa cadastrada.</td></tr>`}
+      }).join('') || `<tr class="empty-row"><td colspan="7">Nenhuma empresa cadastrada.</td></tr>`}
       </tbody></table>
     </div>
   `;
@@ -658,6 +659,35 @@ function saveEmpresa(ev,id){
   }
   persist(); closeModal(); toast('Empresa salva.'); render();
   return false;
+}
+
+function deleteEmpresa(id){
+  const e = empresaById(id);
+  if(!e) return;
+  const empCount = empregadosDe(id).length;
+  const socioIds = sociosDe(id).map(s=>s.id);
+  const socCount = socioIds.length;
+  const distCount = DATA.distribuicoes.filter(d=>socioIds.includes(d.socioId)).length;
+  const movCount = movimentacoesDe(id).length;
+  const docCount = DATA.documentosEmpresa.filter(d=>d.empresaId===id).length;
+  const partes = [];
+  if(empCount) partes.push(`${empCount} empregado(s)`);
+  if(socCount) partes.push(`${socCount} sócio(s)`);
+  if(distCount) partes.push(`${distCount} distribuição(ões) de lucro`);
+  if(movCount) partes.push(`${movCount} movimentação(ões)`);
+  if(docCount) partes.push(`${docCount} documento(s)`);
+  const aviso = partes.length ? ` Isso também excluirá: ${partes.join(', ')}.` : '';
+  if(!confirm(`Excluir a empresa "${e.nomeFantasia}"?${aviso} Esta ação não pode ser desfeita.`)) return;
+  DATA.empregados = DATA.empregados.filter(f=>f.empresaId!==id);
+  DATA.socios = DATA.socios.filter(s=>s.empresaId!==id);
+  DATA.distribuicoes = DATA.distribuicoes.filter(d=>!socioIds.includes(d.socioId));
+  DATA.movimentacoes = DATA.movimentacoes.filter(m=>m.empresaId!==id);
+  DATA.documentosEmpresa = DATA.documentosEmpresa.filter(d=>d.empresaId!==id);
+  DATA.pendenciasManuais = DATA.pendenciasManuais.filter(p=>p.empresaId!==id);
+  DATA.empresas = DATA.empresas.filter(x=>x.id!==id);
+  persist();
+  toast('Empresa e registros vinculados excluídos.');
+  go('empresas');
 }
 
 /* ============================= IMPORTAÇÃO VIA PLANILHA ============================= */
@@ -985,7 +1015,10 @@ function viewEmpresaDetail(){
         <div class="detail-title">${esc(e.nomeFantasia)}</div>
         <div class="detail-meta">${esc(e.razaoSocial)} · CNPJ ${esc(e.cnpj)}</div>
       </div>
-      <button class="btn" onclick="openModalEmpresa('${e.id}')">Editar dados</button>
+      <div style="display:flex;gap:8px;">
+        <button class="btn" onclick="openModalEmpresa('${e.id}')">Editar dados</button>
+        <button class="btn btn-danger" onclick="deleteEmpresa('${e.id}')">Excluir empresa</button>
+      </div>
     </div>
     <div class="tabs">
       ${tabs.map(([k,l])=>`<div class="tab ${tab===k?'active':''}" onclick="go('empresaDetail',{empresaId:'${e.id}',empresaTab:'${k}'})">${l}</div>`).join('')}
@@ -1061,18 +1094,20 @@ function tabEmpresaPessoas(e){
   return `
     <div class="panel">
       <h2>Empregados <button class="btn btn-sm btn-primary" onclick="openModalEmpregado(null,'${e.id}')">+ Novo empregado</button></h2>
-      <table><thead><tr><th>Nome</th><th>Cargo</th><th>Admissão</th><th>Salário</th><th>Status</th></tr></thead><tbody>
+      <table><thead><tr><th>Nome</th><th>Cargo</th><th>Admissão</th><th>Salário</th><th>Status</th><th></th></tr></thead><tbody>
       ${emps.map(f=>`<tr class="clickable" onclick="go('empregadoDetail',{empregadoId:'${f.id}',empresaId:'${e.id}',empregadoTab:'dados'})">
         <td>${esc(f.nome)}</td><td>${esc(f.cargo)}</td><td class="mono">${dateBR(f.admissao)}</td><td class="tnum">${money(f.salario)}</td><td>${badge(f.status)}</td>
-      </tr>`).join('') || `<tr class="empty-row"><td colspan="5">Nenhum empregado cadastrado.</td></tr>`}
+        <td><button class="icon-btn" title="Excluir empregado" onclick="event.stopPropagation();deleteEmpregado('${f.id}')">✕</button></td>
+      </tr>`).join('') || `<tr class="empty-row"><td colspan="6">Nenhum empregado cadastrado.</td></tr>`}
       </tbody></table>
     </div>
     <div class="panel">
       <h2>Sócios <button class="btn btn-sm btn-primary" onclick="openModalSocio(null,'${e.id}')">+ Novo sócio</button></h2>
-      <table><thead><tr><th>Nome</th><th>Status</th><th>Pró-labore</th><th>Distribui lucros?</th></tr></thead><tbody>
+      <table><thead><tr><th>Nome</th><th>Status</th><th>Pró-labore</th><th>Distribui lucros?</th><th></th></tr></thead><tbody>
       ${socs.map(s=>`<tr class="clickable" onclick="openModalSocio('${s.id}')">
         <td>${esc(s.nome)}</td><td>${badge(s.status)}</td><td class="tnum">${money(s.proLabore)}</td><td>${s.distribuiLucros?'Sim':'Não'}</td>
-      </tr>`).join('') || `<tr class="empty-row"><td colspan="4">Nenhum sócio cadastrado.</td></tr>`}
+        <td><button class="icon-btn" title="Excluir sócio" onclick="event.stopPropagation();deleteSocio('${s.id}','${e.id}')">✕</button></td>
+      </tr>`).join('') || `<tr class="empty-row"><td colspan="5">Nenhum sócio cadastrado.</td></tr>`}
       </tbody></table>
     </div>
   `;
@@ -1262,6 +1297,21 @@ function saveEmpregado(ev,id,empresaId){
   return false;
 }
 
+function deleteEmpregado(id){
+  const f = empregadoById(id);
+  if(!f) return;
+  const movCount = DATA.movimentacoes.filter(m=>m.empregadoId===id).length;
+  const aviso = movCount ? ` Isso também excluirá ${movCount} movimentação(ões) vinculada(s).` : '';
+  if(!confirm(`Excluir o cadastro de ${f.nome}?${aviso} Esta ação não pode ser desfeita.`)) return;
+  const empresaId = f.empresaId;
+  DATA.movimentacoes = DATA.movimentacoes.filter(m=>m.empregadoId!==id);
+  DATA.pendenciasManuais = DATA.pendenciasManuais.filter(p=>p.empregadoId!==id);
+  DATA.empregados = DATA.empregados.filter(x=>x.id!==id);
+  persist();
+  toast('Empregado excluído.');
+  go('empresaDetail',{empresaId, empresaTab:'pessoas'});
+}
+
 function viewEmpregadoDetail(){
   const f = empregadoById(VIEW.empregadoId);
   if(!f) return `<p>Empregado não encontrado.</p>`;
@@ -1286,6 +1336,7 @@ function viewEmpregadoDetail(){
       <div style="display:flex;gap:8px;">
         <button class="btn" onclick="openModalEmpregado('${f.id}')">Editar dados</button>
         ${f.status==='Ativo'?`<button class="btn btn-danger" onclick="startDesligamento('${f.id}')">Registrar desligamento</button>`:''}
+        <button class="btn btn-danger" onclick="deleteEmpregado('${f.id}')">Excluir cadastro</button>
       </div>
     </div>
     <div class="tabs">${tabs.map(([k,l])=>`<div class="tab ${tab===k?'active':''}" onclick="go('empregadoDetail',{empregadoId:'${f.id}',empresaId:'${e.id}',empregadoTab:'${k}'})">${l}</div>`).join('')}</div>
@@ -1514,27 +1565,29 @@ function viewSocios(){
     </div>
     <div class="panel">
       <h2>Sócios cadastrados</h2>
-      <table><thead><tr><th>Nome</th><th>Empresa</th><th>Status</th><th>Pró-labore</th><th>Distribui lucros?</th><th>Regra</th></tr></thead><tbody>
+      <table><thead><tr><th>Nome</th><th>Empresa</th><th>Status</th><th>Pró-labore</th><th>Distribui lucros?</th><th>Regra</th><th></th></tr></thead><tbody>
       ${DATA.socios.map(s=>{
         const e = empresaById(s.empresaId);
         return `<tr class="clickable" onclick="openModalSocio('${s.id}')">
           <td>${esc(s.nome)}</td><td>${esc(e?e.nomeFantasia:'—')}</td><td>${badge(s.status)}</td>
           <td class="tnum">${money(s.proLabore)}</td><td>${s.distribuiLucros?'Sim':'Não'}</td><td>${esc(s.regra)||'—'}</td>
+          <td><button class="icon-btn" title="Excluir sócio" onclick="event.stopPropagation();deleteSocio('${s.id}')">✕</button></td>
         </tr>`;
-      }).join('') || `<tr class="empty-row"><td colspan="6">Nenhum sócio cadastrado.</td></tr>`}
+      }).join('') || `<tr class="empty-row"><td colspan="7">Nenhum sócio cadastrado.</td></tr>`}
       </tbody></table>
     </div>
     <div class="panel">
       <h2>Distribuições de lucro <button class="btn btn-sm btn-primary" onclick="openModalDistribuicao()">+ Nova distribuição</button></h2>
-      <table><thead><tr><th>Sócio</th><th>Empresa</th><th>Competência</th><th>Valor</th><th>Status</th></tr></thead><tbody>
+      <table><thead><tr><th>Sócio</th><th>Empresa</th><th>Competência</th><th>Valor</th><th>Status</th><th></th></tr></thead><tbody>
       ${DATA.distribuicoes.map(d=>{
         const s = socioById(d.socioId); const e = s?empresaById(s.empresaId):null;
         return `<tr>
           <td>${esc(s?s.nome:'—')}</td><td>${esc(e?e.nomeFantasia:'—')}</td><td class="mono">${competenciaBR(d.competencia)}</td>
           <td class="tnum">${money(d.valor)}</td>
           <td><select onchange="updDistStatus('${d.id}',this.value)">${['Pendente','Pago'].map(st=>`<option ${d.status===st?'selected':''}>${st}</option>`).join('')}</select></td>
+          <td><button class="icon-btn" title="Excluir distribuição" onclick="deleteDistribuicao('${d.id}')">✕</button></td>
         </tr>`;
-      }).join('') || `<tr class="empty-row"><td colspan="5">Nenhuma distribuição cadastrada.</td></tr>`}
+      }).join('') || `<tr class="empty-row"><td colspan="6">Nenhuma distribuição cadastrada.</td></tr>`}
       </tbody></table>
     </div>
   `;
@@ -1571,6 +1624,19 @@ function saveSocio(ev,id,empresaId){
   persist(); closeModal(); toast('Sócio salvo.'); render();
   return false;
 }
+function deleteSocio(id, redirectEmpresaId){
+  const s = socioById(id);
+  if(!s) return;
+  const distCount = DATA.distribuicoes.filter(d=>d.socioId===id).length;
+  const aviso = distCount ? ` Isso também excluirá ${distCount} distribuição(ões) de lucro vinculada(s).` : '';
+  if(!confirm(`Excluir o cadastro de ${s.nome}?${aviso} Esta ação não pode ser desfeita.`)) return;
+  DATA.distribuicoes = DATA.distribuicoes.filter(d=>d.socioId!==id);
+  DATA.socios = DATA.socios.filter(x=>x.id!==id);
+  persist();
+  toast('Sócio excluído.');
+  if(redirectEmpresaId) go('empresaDetail',{empresaId:redirectEmpresaId, empresaTab:'pessoas'});
+  else go('socios');
+}
 function openModalDistribuicao(){
   showModal(`
     <h3>Nova distribuição</h3>
@@ -1592,6 +1658,13 @@ function saveDistribuicao(ev){
   DATA.distribuicoes.push(Object.assign({id:newId('d')}, vals));
   persist(); closeModal(); toast('Distribuição registrada.'); render();
   return false;
+}
+function deleteDistribuicao(id){
+  if(!confirm('Excluir esta distribuição de lucro? Esta ação não pode ser desfeita.')) return;
+  DATA.distribuicoes = DATA.distribuicoes.filter(d=>d.id!==id);
+  persist();
+  toast('Distribuição excluída.');
+  render();
 }
 
 /* ============================= MOVIMENTAÇÕES (CENTRAL) ============================= */
