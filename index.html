@@ -378,14 +378,33 @@ function fmtCompetencia(d){
 }
 function addDays(d,n){const r=new Date(d);r.setDate(r.getDate()+n);return r.toISOString().slice(0,10);}
 
+/* Benefícios de valor variável lançados manualmente na folha, mês a mês */
+const EXTRA_BENEFITS = [
+  {key:'reembolsoFaculdade', label:'Reembolso Faculdade 50%', obsAllowed:true},
+  {key:'produtividade', label:'Produtividade', obsAllowed:false},
+  {key:'ajudaCusto', label:'Ajuda de Custo', obsAllowed:false}
+];
+function ensureEmployeeShape(f){
+  if(!f.beneficios) f.beneficios = {};
+  EXTRA_BENEFITS.forEach(cfg=>{
+    if(!f.beneficios[cfg.key]) f.beneficios[cfg.key] = {recebe:false, valor:0, obs:'', historico:[]};
+  });
+  return f;
+}
+
 let DATA;
 DATA = loadData();
 function loadData(){
   try{
     const raw = localStorage.getItem(STORE_KEY);
-    if(raw) return JSON.parse(raw);
+    if(raw){
+      const parsed = JSON.parse(raw);
+      (parsed.empregados||[]).forEach(ensureEmployeeShape);
+      return parsed;
+    }
   }catch(e){}
   const seed = seedData();
+  seed.empregados.forEach(ensureEmployeeShape);
   saveData(seed);
   return seed;
 }
@@ -418,6 +437,31 @@ function statusBadgeClass(status){
 function badge(status){ return `<span class="badge ${statusBadgeClass(status)}">${esc(status)}</span>`; }
 function isCurrentComp(c){ return c===DATA.meta.competenciaAtual; }
 function daysUntil(iso){ const d=new Date(iso+'T00:00:00'); const t=new Date(); t.setHours(0,0,0,0); return Math.round((d-t)/86400000); }
+function normalizeLabel(v){ return String(v||'').trim().toLowerCase(); }
+function hasMovimentacaoThisComp(empregadoId, tipoLabel){
+  return DATA.movimentacoes.some(m=> m.empregadoId===empregadoId && isCurrentComp(m.competencia) && normalizeLabel(m.tipo)===normalizeLabel(tipoLabel));
+}
+function hasDistribuicaoThisComp(socioId){
+  return DATA.distribuicoes.some(d=> d.socioId===socioId && isCurrentComp(d.competencia));
+}
+function launchBenefFolha(empregadoId, key){
+  const f = empregadoById(empregadoId);
+  const cfg = EXTRA_BENEFITS.find(b=>b.key===key);
+  if(!f || !cfg) return;
+  const valor = (f.beneficios[key] && f.beneficios[key].valor) || 0;
+  DATA.movimentacoes.push({id:newId('m'), empregadoId, empresaId:f.empresaId, tipo:cfg.label, valor, competencia:DATA.meta.competenciaAtual, status:'Pendente'});
+  persist();
+  toast(`"${cfg.label}" lançado(a) na Central de Movimentações desta competência.`);
+  render();
+}
+function launchDistribuicaoLucro(socioId){
+  const s = socioById(socioId);
+  if(!s) return;
+  DATA.distribuicoes.push({id:newId('d'), socioId, competencia:DATA.meta.competenciaAtual, valor:0, status:'Pendente'});
+  persist();
+  toast('Distribuição de lucros lançada para esta competência — ajuste o valor em Sócios.');
+  render();
+}
 function toast(msg){
   let t = document.createElement('div'); t.className='toast'; t.textContent=msg;
   document.body.appendChild(t); setTimeout(()=>t.remove(),2600);
@@ -450,6 +494,22 @@ function computePendencias(){
     if(m.status==='Pendente' && isCurrentComp(m.competencia)){
       const f = empregadoById(m.empregadoId);
       list.push({id:'auto-mov-'+m.id, empresaId:m.empresaId, empregadoId:m.empregadoId, tipo:'Movimentação não lançada', descricao:`${f?f.nome:'—'}: "${m.tipo}" (${money(m.valor)}) ainda não conferida/lançada.`, prazo:null, status:'Aberta', auto:true});
+    }
+  });
+  DATA.empregados.forEach(f=>{
+    if(f.status!=='Ativo') return;
+    EXTRA_BENEFITS.forEach(cfg=>{
+      const b = f.beneficios[cfg.key];
+      if(b && b.recebe && !hasMovimentacaoThisComp(f.id, cfg.label)){
+        list.push({id:`auto-folha-${f.id}-${cfg.key}`, empresaId:f.empresaId, empregadoId:f.id, tipo:'Lançamento em folha (dia 01)', descricao:`${f.nome}: lançar "${cfg.label}" (${money(b.valor)}) na folha de pagamento desta competência.`, prazo:`${DATA.meta.competenciaAtual}-01`, status:'Urgente', auto:true, actionType:'folha', actionEmpregadoId:f.id, actionKey:cfg.key});
+      }
+    });
+  });
+  DATA.socios.forEach(s=>{
+    if(!s.distribuiLucros) return;
+    if(!hasDistribuicaoThisComp(s.id)){
+      const emp = empresaById(s.empresaId);
+      list.push({id:`auto-distlucro-${s.id}`, empresaId:s.empresaId, empregadoId:null, tipo:'Distribuição de lucros (dia 01)', descricao:`${s.nome}${emp?` (${emp.nomeFantasia})`:''}: lançar distribuição de lucros desta competência.`, prazo:`${DATA.meta.competenciaAtual}-01`, status:'Urgente', auto:true, actionType:'distribuicao', actionSocioId:s.id});
     }
   });
   DATA.pendenciasManuais.forEach(p=> list.push(Object.assign({auto:false}, p)));
@@ -975,11 +1035,13 @@ function confirmImport(){
       novo.desligamentoData = new Date().toISOString().slice(0,10);
       novo.historico.push({data:novo.desligamentoData, tipo:'Desligamento', desc:'Status "Desligado" importado via planilha (data de desligamento não informada — ajuste se necessário).'});
     }
+    ensureEmployeeShape(novo);
     DATA.empregados.push(novo);
   });
   p.empregados.toUpdate.forEach(({existing, entry})=>{
     existing.cargo = entry.cargo; existing.admissao = entry.admissao; existing.salario = entry.salario; existing.status = entry.status;
-    existing.beneficios = entry.beneficios;
+    existing.beneficios = Object.assign({}, existing.beneficios, entry.beneficios);
+    ensureEmployeeShape(existing);
     existing.historico = existing.historico||[];
     existing.historico.push({data:new Date().toISOString().slice(0,10), tipo:'Atualização', desc:'Dados atualizados via importação de planilha.'});
   });
@@ -1291,6 +1353,7 @@ function saveEmpregado(ev,id,empresaId){
       historico:[{data:vals.admissao, tipo:'Admissão', desc:`Admitido(a) como ${vals.cargo}.`}],
       documentos:[]
     };
+    ensureEmployeeShape(novo);
     DATA.empregados.push(novo);
   }
   persist(); closeModal(); toast('Empregado salvo.'); render();
@@ -1376,6 +1439,9 @@ function tabEmpDados(f,e){
           <dt>Vale-alimentação</dt><dd>${f.beneficios.va.recebe?money(f.beneficios.va.valor):'Não recebe'}</dd>
           <dt>Unimed Saúde</dt><dd>${benefFlowBadge(f.beneficios.unimedSaude)}</dd>
           <dt>Unimed Odonto</dt><dd>${benefFlowBadge(f.beneficios.unimedOdonto)}</dd>
+          ${f.beneficios.reembolsoFaculdade && f.beneficios.reembolsoFaculdade.recebe?`<dt>Reembolso Faculdade 50%</dt><dd>${money(f.beneficios.reembolsoFaculdade.valor)}</dd>`:''}
+          ${f.beneficios.produtividade && f.beneficios.produtividade.recebe?`<dt>Produtividade</dt><dd>${money(f.beneficios.produtividade.valor)}</dd>`:''}
+          ${f.beneficios.ajudaCusto && f.beneficios.ajudaCusto.recebe?`<dt>Ajuda de Custo</dt><dd>${money(f.beneficios.ajudaCusto.valor)}</dd>`:''}
         </dl>
       </div>
     </div>
@@ -1416,6 +1482,29 @@ function tabEmpBeneficios(f){
       </div>
       <p class="hint">Alterar o status marca automaticamente "contratado" quando diferente de "—".</p>
     </div>
+    <div class="panel">
+      <h2>Lançamentos mensais em folha</h2>
+      <p class="hint" style="margin-top:-6px;margin-bottom:14px;">Benefícios de valor variável que você precisa lembrar de incluir manualmente em cada lançamento de folha. Enquanto estiverem marcados como "Sim" e não lançados nesta competência, aparecem na Central de Pendências todo dia 01.</p>
+      ${EXTRA_BENEFITS.map(cfg=>extraBenefRow(f,cfg)).join('')}
+    </div>
+  `;
+}
+function extraBenefRow(f, cfg){
+  const b = f.beneficios[cfg.key];
+  const jaLancado = hasMovimentacaoThisComp(f.id, cfg.label);
+  return `
+    <div style="padding:12px 0;border-bottom:1px solid var(--line-soft);">
+      <div style="font-weight:600;font-size:13.5px;margin-bottom:8px;">${esc(cfg.label)}</div>
+      <div class="formgrid">
+        <div class="field"><label>Recebe?</label><select onchange="updExtraBenefRecebe('${f.id}','${cfg.key}',this.value)"><option value="sim" ${b.recebe?'selected':''}>Sim</option><option value="nao" ${!b.recebe?'selected':''}>Não</option></select></div>
+        <div class="field"><label>Valor mensal (R$)</label><input type="number" step="0.01" value="${b.valor}" onchange="updExtraBenefValor('${f.id}','${cfg.key}',this.value)"></div>
+        ${cfg.obsAllowed?`<div class="field full"><label>Observação</label><input value="${esc(b.obs)}" onchange="updExtraBenefObs('${f.id}','${cfg.key}',this.value)"></div>`:''}
+      </div>
+      ${b.recebe?`<div style="display:flex;align-items:center;justify-content:space-between;gap:10px;margin-top:8px;">
+        <span class="hint" style="margin:0;">${jaLancado?`Já lançado na folha desta competência (${competenciaBR(DATA.meta.competenciaAtual)}).`:`Ainda não lançado na folha desta competência.`}</span>
+        ${jaLancado?'':`<button class="btn btn-sm btn-primary" onclick="launchBenefFolha('${f.id}','${cfg.key}')">Lançar nesta competência</button>`}
+      </div>`:''}
+    </div>
   `;
 }
 function refreshEmpTab(id){ render(); }
@@ -1437,6 +1526,19 @@ function updBenefFlow(id,key,v){
   f.beneficios[key].contratado = v !== '—';
   persist(); toast('Status do benefício atualizado.'); refreshEmpTab(id);
 }
+function updExtraBenefRecebe(id,key,v){
+  empregadoById(id).beneficios[key].recebe = v==='sim';
+  persist(); refreshEmpTab(id);
+}
+function updExtraBenefValor(id,key,v){
+  const f = empregadoById(id); const b = f.beneficios[key]; const novo = parseFloat(v)||0;
+  if(novo !== b.valor){
+    b.historico = b.historico||[];
+    b.historico.push({data:new Date().toISOString().slice(0,10), valor:novo, evento:'Alteração manual de valor'});
+  }
+  b.valor = novo; persist(); refreshEmpTab(id);
+}
+function updExtraBenefObs(id,key,v){ empregadoById(id).beneficios[key].obs = v; persist(); }
 
 function tabEmpParticularidades(f){
   return `
@@ -1777,11 +1879,17 @@ function viewPendencias(){
   if(filtroStatus) pend = pend.filter(p=>p.status===filtroStatus);
   pend.sort((a,b)=> (a.status==='Urgente'?0:1) - (b.status==='Urgente'?0:1));
   const tipos = [...new Set(computePendencias().map(p=>p.tipo))];
+  const pendDia01 = computePendencias().filter(p=>p.actionType==='folha' || p.actionType==='distribuicao');
 
   return `
     <div class="pagehead">
       <div><h1>Central de pendências</h1><div class="sub">Visão consolidada de itens críticos e próximos vencimentos.</div></div>
       <button class="btn btn-primary" onclick="openModalPendencia()">+ Pendência manual</button>
+    </div>
+    <div class="panel">
+      <h2>Lançamentos do dia 01 <span class="badge ${pendDia01.length?'badge-urgente':'badge-finalizado'}">${pendDia01.length}</span></h2>
+      <p class="hint" style="margin-top:-6px;margin-bottom:12px;">Benefícios de valor variável (Reembolso Faculdade, Produtividade, Ajuda de Custo) e distribuições de lucro que ainda precisam ser lançados na folha desta competência. Some da lista assim que você clicar em "Lançar".</p>
+      ${pendDia01.length===0?'<p class="hint">Nada pendente para lançar nesta competência.</p>':renderPendTable(pendDia01, false)}
     </div>
     <div class="filterbar">
       <select onchange="setFiltroPend('empresa',this.value)"><option value="">Todas as empresas</option>${DATA.empresas.map(e=>`<option value="${e.id}" ${filtroEmpresa===e.id?'selected':''}>${esc(e.nomeFantasia)}</option>`).join('')}</select>
@@ -1805,14 +1913,22 @@ function setFiltroPend(which,val){
 }
 function renderPendTable(pend, allowDelete){
   if(pend.length===0) return `<p class="hint">Nenhuma pendência encontrada.</p>`;
-  return `<table><thead><tr><th>Status</th><th>Empresa</th><th>Tipo</th><th>Descrição</th><th>Prazo</th>${allowDelete?'<th></th>':''}</tr></thead><tbody>
+  return `<table><thead><tr><th>Status</th><th>Empresa</th><th>Tipo</th><th>Descrição</th><th>Prazo</th><th></th></tr></thead><tbody>
     ${pend.map(p=>{
       const e = empresaById(p.empresaId);
       const dleft = p.prazo?daysUntil(p.prazo):null;
+      let actionHtml = '';
+      if(p.actionType==='folha'){
+        actionHtml = `<button class="btn btn-sm btn-primary" onclick="event.stopPropagation();launchBenefFolha('${p.actionEmpregadoId}','${p.actionKey}')">Lançar</button>`;
+      }else if(p.actionType==='distribuicao'){
+        actionHtml = `<button class="btn btn-sm btn-primary" onclick="event.stopPropagation();launchDistribuicaoLucro('${p.actionSocioId}')">Lançar</button>`;
+      }else if(allowDelete && !p.auto){
+        actionHtml = `<button class="icon-btn" onclick="event.stopPropagation();deletePendManual('${p.id}')">✕</button>`;
+      }
       return `<tr class="clickable" onclick="${p.empregadoId?`go('empregadoDetail',{empregadoId:'${p.empregadoId}',empresaId:'${p.empresaId}',empregadoTab:'dados'})`:(p.empresaId?`go('empresaDetail',{empresaId:'${p.empresaId}',empresaTab:'pendencias'})`:'')}">
         <td>${badge(p.status)}</td><td>${esc(e?e.nomeFantasia:'—')}</td><td>${esc(p.tipo)}</td><td>${esc(p.descricao)}</td>
         <td class="mono">${p.prazo?dateBR(p.prazo)+(dleft!==null?` <span style="color:${dleft<0?'var(--brick)':'var(--slate)'}">(${dleft<0?Math.abs(dleft)+'d atraso':dleft+'d'})</span>`:''):'—'}</td>
-        ${allowDelete?`<td>${p.auto?'':`<button class="icon-btn" onclick="event.stopPropagation();deletePendManual('${p.id}')">✕</button>`}</td>`:''}
+        <td>${actionHtml}</td>
       </tr>`;
     }).join('')}
   </tbody></table>`;
