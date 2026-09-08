@@ -436,6 +436,12 @@ function statusBadgeClass(status){
 }
 function badge(status){ return `<span class="badge ${statusBadgeClass(status)}">${esc(status)}</span>`; }
 function isCurrentComp(c){ return c===DATA.meta.competenciaAtual; }
+function competenciaDiaFechamento(comp){
+  const [y,m] = comp.split('-').map(Number);
+  const diasNoMes = new Date(y, m, 0).getDate();
+  const dia = Math.min(30, diasNoMes);
+  return `${comp}-${String(dia).padStart(2,'0')}`;
+}
 function daysUntil(iso){ const d=new Date(iso+'T00:00:00'); const t=new Date(); t.setHours(0,0,0,0); return Math.round((d-t)/86400000); }
 function normalizeLabel(v){ return String(v||'').trim().toLowerCase(); }
 function hasMovimentacaoThisComp(empregadoId, tipoLabel){
@@ -501,7 +507,7 @@ function computePendencias(){
     EXTRA_BENEFITS.forEach(cfg=>{
       const b = f.beneficios[cfg.key];
       if(b && b.recebe && !hasMovimentacaoThisComp(f.id, cfg.label)){
-        list.push({id:`auto-folha-${f.id}-${cfg.key}`, empresaId:f.empresaId, empregadoId:f.id, tipo:'Lançamento em folha (dia 01)', descricao:`${f.nome}: lançar "${cfg.label}" (${money(b.valor)}) na folha de pagamento desta competência.`, prazo:`${DATA.meta.competenciaAtual}-01`, status:'Urgente', auto:true, actionType:'folha', actionEmpregadoId:f.id, actionKey:cfg.key});
+        list.push({id:`auto-folha-${f.id}-${cfg.key}`, empresaId:f.empresaId, empregadoId:f.id, tipo:'Lançamento em folha (dia 30)', descricao:`${f.nome}: lançar "${cfg.label}" (${money(b.valor)}) na folha de pagamento desta competência.`, prazo:competenciaDiaFechamento(DATA.meta.competenciaAtual), status:'Urgente', auto:true, actionType:'folha', actionEmpregadoId:f.id, actionKey:cfg.key});
       }
     });
   });
@@ -509,7 +515,7 @@ function computePendencias(){
     if(!s.distribuiLucros) return;
     if(!hasDistribuicaoThisComp(s.id)){
       const emp = empresaById(s.empresaId);
-      list.push({id:`auto-distlucro-${s.id}`, empresaId:s.empresaId, empregadoId:null, tipo:'Distribuição de lucros (dia 01)', descricao:`${s.nome}${emp?` (${emp.nomeFantasia})`:''}: lançar distribuição de lucros desta competência.`, prazo:`${DATA.meta.competenciaAtual}-01`, status:'Urgente', auto:true, actionType:'distribuicao', actionSocioId:s.id});
+      list.push({id:`auto-distlucro-${s.id}`, empresaId:s.empresaId, empregadoId:null, tipo:'Distribuição de lucros (dia 30)', descricao:`${s.nome}${emp?` (${emp.nomeFantasia})`:''}: lançar distribuição de lucros desta competência.`, prazo:competenciaDiaFechamento(DATA.meta.competenciaAtual), status:'Urgente', auto:true, actionType:'distribuicao', actionSocioId:s.id});
     }
   });
   DATA.pendenciasManuais.forEach(p=> list.push(Object.assign({auto:false}, p)));
@@ -1484,7 +1490,7 @@ function tabEmpBeneficios(f){
     </div>
     <div class="panel">
       <h2>Lançamentos mensais em folha</h2>
-      <p class="hint" style="margin-top:-6px;margin-bottom:14px;">Benefícios de valor variável que você precisa lembrar de incluir manualmente em cada lançamento de folha. Enquanto estiverem marcados como "Sim" e não lançados nesta competência, aparecem na Central de Pendências todo dia 01.</p>
+      <p class="hint" style="margin-top:-6px;margin-bottom:14px;">Benefícios de valor variável que você precisa lembrar de incluir manualmente em cada lançamento de folha. Enquanto estiverem marcados como "Sim" e não lançados nesta competência, aparecem na Central de Pendências todo dia 30.</p>
       ${EXTRA_BENEFITS.map(cfg=>extraBenefRow(f,cfg)).join('')}
     </div>
   `;
@@ -1887,7 +1893,7 @@ function viewPendencias(){
       <button class="btn btn-primary" onclick="openModalPendencia()">+ Pendência manual</button>
     </div>
     <div class="panel">
-      <h2>Lançamentos do dia 01 <span class="badge ${pendDia01.length?'badge-urgente':'badge-finalizado'}">${pendDia01.length}</span></h2>
+      <h2>Lançamentos do dia 30 <span class="badge ${pendDia01.length?'badge-urgente':'badge-finalizado'}">${pendDia01.length}</span></h2>
       <p class="hint" style="margin-top:-6px;margin-bottom:12px;">Benefícios de valor variável (Reembolso Faculdade, Produtividade, Ajuda de Custo) e distribuições de lucro que ainda precisam ser lançados na folha desta competência. Some da lista assim que você clicar em "Lançar".</p>
       ${pendDia01.length===0?'<p class="hint">Nada pendente para lançar nesta competência.</p>':renderPendTable(pendDia01, false)}
     </div>
