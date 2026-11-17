@@ -510,6 +510,20 @@ function launchDistribuicaoLucro(socioId, comp, pendId){
   toast(`Distribuição de lucros lançada para ${competenciaBR(comp)} — ajuste o valor em Sócios.`);
   render();
 }
+/* Marca uma movimentação como lançada na folha (tira o item de "Movimentação não lançada") */
+function marcarMovLancada(id){
+  const m = DATA.movimentacoes.find(x=>x.id===id);
+  if(!m) return;
+  m.status = 'Lançado';
+  const f = empregadoById(m.empregadoId);
+  if(f){
+    f.historico = f.historico||[];
+    f.historico.push({data:new Date().toISOString().slice(0,10), tipo:'Lançamento', desc:`"${m.tipo}" (${money(m.valor)}, ${competenciaBR(m.competencia)}) marcado como lançado na folha.`});
+  }
+  persist();
+  toast('Movimentação marcada como lançada.');
+  render();
+}
 /* Baixa (conclui) uma pendência manual / obrigação do mês. Sem render: quem chama decide. */
 function baixarPendencia(id, silent){
   const p = DATA.pendenciasManuais.find(x=>x.id===id);
@@ -563,7 +577,7 @@ function computePendencias(incluirConcluidas){
       const naoConferida = m.status==='Pendente';
       list.push({id:'auto-mov-'+m.id, empresaId:m.empresaId, empregadoId:m.empregadoId, tipo:'Movimentação não lançada',
         descricao:`${f?f.nome:'—'}: "${m.tipo}" (${money(m.valor)}) ${naoConferida?'ainda não conferida':'conferida, mas ainda não lançada na folha'}.`,
-        prazo:null, status:isCompAnterior(m.competencia)?'Urgente':'Aberta', auto:true, competencia:m.competencia});
+        prazo:null, status:isCompAnterior(m.competencia)?'Urgente':'Aberta', auto:true, competencia:m.competencia, movId:m.id});
     }
   });
   /* Lançamentos de valor variável do mês atual (os de meses anteriores viram pendência "carregada" no fechamento) */
@@ -2156,6 +2170,9 @@ function renderPendTable(pend, allowDelete){
           actionHtml += `<button class="btn btn-sm btn-primary" onclick="event.stopPropagation();launchBenefFolha('${p.actionEmpregadoId}','${p.actionKey}','${p.competencia||''}','${p.auto?'':p.id}')">Lançar</button> `;
         }else if(p.actionType==='distribuicao'){
           actionHtml += `<button class="btn btn-sm btn-primary" onclick="event.stopPropagation();launchDistribuicaoLucro('${p.actionSocioId}','${p.competencia||''}','${p.auto?'':p.id}')">Lançar</button> `;
+        }
+        if(p.movId){
+          actionHtml += `<button class="btn btn-sm btn-primary" title="Use depois de lançar na folha de pagamento" onclick="event.stopPropagation();marcarMovLancada('${p.movId}')">Marcar lançado</button> `;
         }
         if(!p.auto && !p.actionType){
           actionHtml += `<button class="btn btn-sm" onclick="event.stopPropagation();baixarPendencia('${p.id}')">Baixar</button> `;
