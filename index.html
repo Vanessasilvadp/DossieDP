@@ -1792,7 +1792,11 @@ function tabEmpChecklist(f){
     </div>
     ${f.checklistDesligamento?`
     <div class="panel">
-      <h2>Checklist de desligamento</h2>
+      <h2>Checklist de desligamento
+        <label style="font-size:13px;font-weight:500;display:flex;align-items:center;gap:6px;cursor:pointer;">
+          <input type="checkbox" style="width:16px;height:16px;accent-color:var(--teal);" ${Object.values(f.checklistDesligamento).every(Boolean)?'checked':''} onchange="marcarTodosChecklist('${f.id}','checklistDesligamento',this.checked)"> Marcar todos
+        </label>
+      </h2>
       <div class="checklist-progress"><div class="checklist-progress-bar" style="width:${deslPct}%;background:var(--brick);"></div></div>
       <ul class="checklist">
         ${Object.entries(f.checklistDesligamento).map(([k,v])=>`
@@ -1807,9 +1811,10 @@ function marcarTodosChecklist(id, which, marcar){
   const f = empregadoById(id);
   if(!f || !f[which]) return;
   Object.keys(f[which]).forEach(k=> f[which][k] = marcar);
-  if(marcar && which==='checklistAdmissao'){
+  if(marcar && (which==='checklistAdmissao' || which==='checklistDesligamento')){
+    const adm = which==='checklistAdmissao';
     f.historico = f.historico||[];
-    f.historico.push({data:new Date().toISOString().slice(0,10), tipo:'Admissão', desc:'Todas as etapas do checklist de admissão marcadas como conferidas.'});
+    f.historico.push({data:new Date().toISOString().slice(0,10), tipo:adm?'Admissão':'Desligamento', desc:`Todas as etapas do checklist de ${adm?'admissão':'desligamento'} marcadas como conferidas.`});
   }
   persist(); render();
 }
