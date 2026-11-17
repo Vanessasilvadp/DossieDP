@@ -392,19 +392,31 @@ function ensureEmployeeShape(f){
   return f;
 }
 
+/* Garante que dados antigos (salvos antes do controle mensal) ganhem os campos novos */
+function migrateData(d){
+  (d.empregados||[]).forEach(ensureEmployeeShape);
+  if(!d.meta) d.meta = {};
+  if(!d.meta.competenciaAtual) d.meta.competenciaAtual = fmtCompetencia(new Date());
+  if(!d.fechamentos) d.fechamentos = [];
+  if(!d.pendenciasManuais) d.pendenciasManuais = [];
+  d.pendenciasManuais.forEach(p=>{
+    if(!p.competencia) p.competencia = d.meta.competenciaAtual;
+    if(!p.origem) p.origem = 'manual';
+    if(p.recorrente===undefined) p.recorrente = false;
+  });
+  return d;
+}
+
 let DATA;
 DATA = loadData();
 function loadData(){
   try{
     const raw = localStorage.getItem(STORE_KEY);
     if(raw){
-      const parsed = JSON.parse(raw);
-      (parsed.empregados||[]).forEach(ensureEmployeeShape);
-      return parsed;
+      return migrateData(JSON.parse(raw));
     }
   }catch(e){}
-  const seed = seedData();
-  seed.empregados.forEach(ensureEmployeeShape);
+  const seed = migrateData(seedData());
   saveData(seed);
   return seed;
 }
@@ -430,8 +442,13 @@ function socioById(id){ return DATA.socios.find(s=>s.id===id); }
 function empregadosDe(empresaId){ return DATA.empregados.filter(f=>f.empresaId===empresaId); }
 function sociosDe(empresaId){ return DATA.socios.filter(s=>s.empresaId===empresaId); }
 function movimentacoesDe(empresaId){ return DATA.movimentacoes.filter(m=>m.empresaId===empresaId); }
+/* Mês atual + o que ficou sem finalizar em meses anteriores (o que "segue" para o mês corrente) */
+function movimentacoesEmFoco(list){
+  const cur = DATA.meta.competenciaAtual;
+  return list.filter(m=> m.competencia===cur || (m.competencia<cur && m.status!=='Finalizado'));
+}
 function statusBadgeClass(status){
-  const map = {'Ativo':'ativo','Ativa':'ativo','Desligado':'desligado','Pendente':'pendente','Conferido':'conferido','Lançado':'lancado','Finalizado':'finalizado','Urgente':'urgente','Aberta':'pendente','Pago':'finalizado','Confirmada':'finalizado','Confirmado':'finalizado'};
+  const map = {'Ativo':'ativo','Ativa':'ativo','Desligado':'desligado','Pendente':'pendente','Conferido':'conferido','Lançado':'lancado','Finalizado':'finalizado','Urgente':'urgente','Aberta':'pendente','Pago':'finalizado','Concluída':'finalizado','Confirmada':'finalizado','Confirmado':'finalizado'};
   return 'badge-'+(map[status]||'neutro');
 }
 function badge(status){ return `<span class="badge ${statusBadgeClass(status)}">${esc(status)}</span>`; }
@@ -442,31 +459,72 @@ function competenciaDiaFechamento(comp){
   const dia = Math.min(30, diasNoMes);
   return `${comp}-${String(dia).padStart(2,'0')}`;
 }
+function nextComp(c){
+  let [y,m] = c.split('-').map(Number);
+  m++; if(m>12){ m=1; y++; }
+  return `${y}-${String(m).padStart(2,'0')}`;
+}
+function calendarComp(){ return fmtCompetencia(new Date()); }
+/* Leva um prazo (AAAA-MM-DD) para o mesmo dia da competência informada, respeitando meses curtos */
+function shiftPrazo(prazo, comp){
+  if(!prazo) return null;
+  const dia = parseInt(prazo.slice(8,10),10);
+  const [y,m] = comp.split('-').map(Number);
+  const dim = new Date(y, m, 0).getDate();
+  return `${comp}-${String(Math.min(dia,dim)).padStart(2,'0')}`;
+}
+function isCompAnterior(c){ return !!c && c < DATA.meta.competenciaAtual; }
 function daysUntil(iso){ const d=new Date(iso+'T00:00:00'); const t=new Date(); t.setHours(0,0,0,0); return Math.round((d-t)/86400000); }
 function normalizeLabel(v){ return String(v||'').trim().toLowerCase(); }
-function hasMovimentacaoThisComp(empregadoId, tipoLabel){
-  return DATA.movimentacoes.some(m=> m.empregadoId===empregadoId && isCurrentComp(m.competencia) && normalizeLabel(m.tipo)===normalizeLabel(tipoLabel));
+function hasMovimentacaoThisComp(empregadoId, tipoLabel, comp){
+  comp = comp || DATA.meta.competenciaAtual;
+  return DATA.movimentacoes.some(m=> m.empregadoId===empregadoId && m.competencia===comp && normalizeLabel(m.tipo)===normalizeLabel(tipoLabel));
 }
-function hasDistribuicaoThisComp(socioId){
-  return DATA.distribuicoes.some(d=> d.socioId===socioId && isCurrentComp(d.competencia));
+function hasDistribuicaoThisComp(socioId, comp){
+  comp = comp || DATA.meta.competenciaAtual;
+  return DATA.distribuicoes.some(d=> d.socioId===socioId && d.competencia===comp);
 }
-function launchBenefFolha(empregadoId, key){
+function launchBenefFolha(empregadoId, key, comp, pendId){
   const f = empregadoById(empregadoId);
   const cfg = EXTRA_BENEFITS.find(b=>b.key===key);
   if(!f || !cfg) return;
+  comp = comp || DATA.meta.competenciaAtual;
   const valor = (f.beneficios[key] && f.beneficios[key].valor) || 0;
-  DATA.movimentacoes.push({id:newId('m'), empregadoId, empresaId:f.empresaId, tipo:cfg.label, valor, competencia:DATA.meta.competenciaAtual, status:'Pendente'});
+  if(!hasMovimentacaoThisComp(empregadoId, cfg.label, comp)){
+    DATA.movimentacoes.push({id:newId('m'), empregadoId, empresaId:f.empresaId, tipo:cfg.label, valor, competencia:comp, status:'Pendente'});
+  }
+  if(pendId) baixarPendencia(pendId, true);
   persist();
-  toast(`"${cfg.label}" lançado(a) na Central de Movimentações desta competência.`);
+  toast(`"${cfg.label}" lançado(a) na Central de Movimentações (${competenciaBR(comp)}).`);
   render();
 }
-function launchDistribuicaoLucro(socioId){
+function launchDistribuicaoLucro(socioId, comp, pendId){
   const s = socioById(socioId);
   if(!s) return;
-  DATA.distribuicoes.push({id:newId('d'), socioId, competencia:DATA.meta.competenciaAtual, valor:0, status:'Pendente'});
+  comp = comp || DATA.meta.competenciaAtual;
+  if(!hasDistribuicaoThisComp(socioId, comp)){
+    DATA.distribuicoes.push({id:newId('d'), socioId, competencia:comp, valor:0, status:'Pendente'});
+  }
+  if(pendId) baixarPendencia(pendId, true);
   persist();
-  toast('Distribuição de lucros lançada para esta competência — ajuste o valor em Sócios.');
+  toast(`Distribuição de lucros lançada para ${competenciaBR(comp)} — ajuste o valor em Sócios.`);
   render();
+}
+/* Baixa (conclui) uma pendência manual / obrigação do mês. Sem render: quem chama decide. */
+function baixarPendencia(id, silent){
+  const p = DATA.pendenciasManuais.find(x=>x.id===id);
+  if(!p) return;
+  p.status = 'Concluída';
+  p.concluidaEm = new Date().toISOString().slice(0,10);
+  persist();
+  if(!silent){ toast('Pendência baixada.'); render(); }
+}
+function reabrirPendencia(id){
+  const p = DATA.pendenciasManuais.find(x=>x.id===id);
+  if(!p) return;
+  p.status = 'Aberta';
+  delete p.concluidaEm;
+  persist(); toast('Pendência reaberta.'); render();
 }
 function toast(msg){
   let t = document.createElement('div'); t.className='toast'; t.textContent=msg;
@@ -474,8 +532,9 @@ function toast(msg){
 }
 
 /* Central pendency computation (derived + manual) */
-function computePendencias(){
+function computePendencias(incluirConcluidas){
   const list = [];
+  const cur = DATA.meta.competenciaAtual;
   DATA.empregados.forEach(f=>{
     const emp = empresaById(f.empresaId);
     if(f.status==='Desligado'){
@@ -496,30 +555,113 @@ function computePendencias(){
       list.push({id:'auto-desl2-'+f.id, empresaId:f.empresaId, empregadoId:f.id, tipo:'Desligamento com pendência', descricao:`${f.nome}: checklist de desligamento incompleto (${pend.join(', ')}).`, prazo:f.desligamentoData, status:'Urgente', auto:true});
     }
   });
+  /* Movimentações não finalizadas: as do mês atual E as que vieram de meses anteriores sem baixa */
   DATA.movimentacoes.forEach(m=>{
-    if(m.status==='Pendente' && isCurrentComp(m.competencia)){
+    if(m.competencia > cur) return;
+    if(m.status==='Pendente' || m.status==='Conferido'){
       const f = empregadoById(m.empregadoId);
-      list.push({id:'auto-mov-'+m.id, empresaId:m.empresaId, empregadoId:m.empregadoId, tipo:'Movimentação não lançada', descricao:`${f?f.nome:'—'}: "${m.tipo}" (${money(m.valor)}) ainda não conferida/lançada.`, prazo:null, status:'Aberta', auto:true});
+      const naoConferida = m.status==='Pendente';
+      list.push({id:'auto-mov-'+m.id, empresaId:m.empresaId, empregadoId:m.empregadoId, tipo:'Movimentação não lançada',
+        descricao:`${f?f.nome:'—'}: "${m.tipo}" (${money(m.valor)}) ${naoConferida?'ainda não conferida':'conferida, mas ainda não lançada na folha'}.`,
+        prazo:null, status:isCompAnterior(m.competencia)?'Urgente':'Aberta', auto:true, competencia:m.competencia});
     }
   });
+  /* Lançamentos de valor variável do mês atual (os de meses anteriores viram pendência "carregada" no fechamento) */
   DATA.empregados.forEach(f=>{
     if(f.status!=='Ativo') return;
     EXTRA_BENEFITS.forEach(cfg=>{
       const b = f.beneficios[cfg.key];
-      if(b && b.recebe && !hasMovimentacaoThisComp(f.id, cfg.label)){
-        list.push({id:`auto-folha-${f.id}-${cfg.key}`, empresaId:f.empresaId, empregadoId:f.id, tipo:'Lançamento em folha (dia 30)', descricao:`${f.nome}: lançar "${cfg.label}" (${money(b.valor)}) na folha de pagamento desta competência.`, prazo:competenciaDiaFechamento(DATA.meta.competenciaAtual), status:'Urgente', auto:true, actionType:'folha', actionEmpregadoId:f.id, actionKey:cfg.key});
+      if(b && b.recebe && !hasMovimentacaoThisComp(f.id, cfg.label, cur)){
+        list.push({id:`auto-folha-${f.id}-${cfg.key}`, empresaId:f.empresaId, empregadoId:f.id, tipo:'Lançamento em folha (dia 30)', descricao:`${f.nome}: lançar "${cfg.label}" (${money(b.valor)}) na folha de pagamento desta competência.`, prazo:competenciaDiaFechamento(cur), status:'Urgente', auto:true, competencia:cur, actionType:'folha', actionEmpregadoId:f.id, actionKey:cfg.key});
       }
     });
   });
   DATA.socios.forEach(s=>{
     if(!s.distribuiLucros) return;
-    if(!hasDistribuicaoThisComp(s.id)){
+    if(!hasDistribuicaoThisComp(s.id, cur)){
       const emp = empresaById(s.empresaId);
-      list.push({id:`auto-distlucro-${s.id}`, empresaId:s.empresaId, empregadoId:null, tipo:'Distribuição de lucros (dia 30)', descricao:`${s.nome}${emp?` (${emp.nomeFantasia})`:''}: lançar distribuição de lucros desta competência.`, prazo:competenciaDiaFechamento(DATA.meta.competenciaAtual), status:'Urgente', auto:true, actionType:'distribuicao', actionSocioId:s.id});
+      list.push({id:`auto-distlucro-${s.id}`, empresaId:s.empresaId, empregadoId:null, tipo:'Distribuição de lucros (dia 30)', descricao:`${s.nome}${emp?` (${emp.nomeFantasia})`:''}: lançar distribuição de lucros desta competência.`, prazo:competenciaDiaFechamento(cur), status:'Urgente', auto:true, competencia:cur, actionType:'distribuicao', actionSocioId:s.id});
     }
   });
-  DATA.pendenciasManuais.forEach(p=> list.push(Object.assign({auto:false}, p)));
+  DATA.pendenciasManuais.forEach(p=>{
+    if(p.status==='Concluída' && !incluirConcluidas) return;
+    list.push(Object.assign({auto:false}, p));
+  });
   return list;
+}
+
+/* ============================= FLUXO MENSAL ============================= */
+/* Obrigações que se repetem em toda competência, geradas a partir do cadastro de cada empresa.
+   Idempotente: cada item tem uma "chave" e nunca é criado duas vezes. */
+function obrigacoesDoMes(comp){
+  const itens = [];
+  DATA.empresas.forEach(e=>{
+    const ativos = empregadosDe(e.id).filter(f=>f.status==='Ativo');
+    itens.push({chave:`${e.id}|${comp}|pagamento`, empresaId:e.id, tipo:'Obrigação do mês', descricao:`${e.nomeFantasia}: conferir o pagamento da folha (dia ${e.diaPagamento}).`, prazo:shiftPrazo(`${comp}-${String(e.diaPagamento).padStart(2,'0')}`, comp)});
+    const vt = ativos.filter(f=>f.beneficios.vt && f.beneficios.vt.recebe);
+    if(vt.length){
+      const dia = Math.min(...vt.map(f=>f.beneficios.vt.dataRecarga||1));
+      itens.push({chave:`${e.id}|${comp}|vt`, empresaId:e.id, tipo:'Obrigação do mês', descricao:`${e.nomeFantasia}: recarga de vale-transporte (${vt.length} empregado${vt.length>1?'s':''}).`, prazo:shiftPrazo(`${comp}-${String(dia).padStart(2,'0')}`, comp)});
+    }
+    const fixos = ativos.filter(f=>f.particularidades && String(f.particularidades.gratificacoesFixas||'').trim());
+    if(fixos.length){
+      itens.push({chave:`${e.id}|${comp}|fixos`, empresaId:e.id, tipo:'Obrigação do mês', descricao:`${e.nomeFantasia}: conferir lançamentos fixos na folha (${fixos.map(f=>f.nome.split(' ')[0]).join(', ')}).`, prazo:competenciaDiaFechamento(comp)});
+    }
+    const datas = e.regras && String(e.regras.datasImportantes||'').trim();
+    if(datas){
+      itens.push({chave:`${e.id}|${comp}|datas`, empresaId:e.id, tipo:'Obrigação do mês', descricao:`${e.nomeFantasia}: datas importantes da empresa — ${datas}`, prazo:null});
+    }
+  });
+  return itens;
+}
+function gerarObrigacoesMes(comp, dryRun){
+  const novas = obrigacoesDoMes(comp).filter(o=> !DATA.pendenciasManuais.some(p=>p.chave===o.chave));
+  if(!dryRun){
+    novas.forEach(o=> DATA.pendenciasManuais.push(Object.assign({id:newId('p'), empregadoId:null, status:'Aberta', competencia:comp, origem:'sistema', recorrente:false}, o)));
+  }
+  return novas;
+}
+/* O que acontece se a competência atual for fechada agora (sem alterar nada) */
+function resumoFechamento(){
+  const cur = DATA.meta.competenciaAtual, prox = nextComp(cur);
+  const abertas = computePendencias();
+  const lancamentos = abertas.filter(p=>p.actionType && p.competencia===cur);
+  const recorrentes = DATA.pendenciasManuais.filter(p=>p.recorrente && p.competencia===cur && !p.recorrenciaGerada);
+  const novasObrig = gerarObrigacoesMes(prox, true);
+  return {cur, prox, abertas, urgentes:abertas.filter(p=>p.status==='Urgente'), lancamentos, recorrentes, novasObrig};
+}
+/* Fecha a competência atual e abre a seguinte, levando tudo o que está em aberto junto */
+function fecharCompetencia(){
+  const r = resumoFechamento();
+  const cur = r.cur, prox = r.prox;
+  // 1) lançamentos do mês que não foram feitos viram pendências "carregadas", que continuam podendo ser lançadas no mês de origem
+  r.lancamentos.forEach(p=>{
+    DATA.pendenciasManuais.push({
+      id:newId('p'), empresaId:p.empresaId, empregadoId:p.empregadoId||null, tipo:p.tipo.replace(' (dia 30)',''),
+      descricao:p.descricao.replace('desta competência', `de ${competenciaBR(cur)}`),
+      prazo:p.prazo, status:'Urgente', competencia:cur, origem:'carregada', recorrente:false,
+      actionType:p.actionType, actionEmpregadoId:p.actionEmpregadoId, actionKey:p.actionKey, actionSocioId:p.actionSocioId
+    });
+  });
+  // 2) pendências recorrentes voltam no mês seguinte, estando baixadas ou não
+  r.recorrentes.forEach(p=>{
+    p.recorrenciaGerada = true;
+    DATA.pendenciasManuais.push({
+      id:newId('p'), empresaId:p.empresaId, empregadoId:p.empregadoId||null, tipo:p.tipo, descricao:p.descricao,
+      prazo:shiftPrazo(p.prazo, prox), status:'Aberta', competencia:prox, origem:p.origem==='sistema'?'manual':p.origem, recorrente:true
+    });
+  });
+  // 3) obrigações padrão do novo mês
+  const geradas = gerarObrigacoesMes(prox);
+  // 4) registra o fechamento e avança
+  DATA.fechamentos.push({competencia:cur, fechadaEm:new Date().toISOString().slice(0,10), levadas:r.abertas.length, urgentes:r.urgentes.length, proxima:prox});
+  DATA.meta.competenciaAtual = prox;
+  persist();
+  return {prox, levadas:r.abertas.length, geradas:geradas.length, recriadas:r.recorrentes.length};
+}
+function bootstrapMonth(){
+  gerarObrigacoesMes(DATA.meta.competenciaAtual);
+  persist();
 }
 function proximasRecargasVT(){
   const list = [];
@@ -551,7 +693,8 @@ function render(){
         <div class="navgroup-label">SUPORTE</div>
         ${navItem('documentos','Documentos')}
       </nav>
-      <div class="sidebar-foot">Competência atual<br><strong style="color:#C7CCDA">${competenciaBR(DATA.meta.competenciaAtual)}</strong></div>
+      <div class="sidebar-foot">Competência aberta<br><strong style="color:#C7CCDA;font-size:14px;">${competenciaBR(DATA.meta.competenciaAtual)}</strong>
+        <button class="btn btn-sm" style="margin-top:10px;width:100%;justify-content:center;background:rgba(255,255,255,.08);color:#E7E9EE;border-color:rgba(255,255,255,.18);" onclick="openModalFecharCompetencia()">Fechar competência</button></div>
     </div>
     <main id="main"></main>
   `;
@@ -577,7 +720,44 @@ function renderMain(){
     case 'documentos': html = viewDocumentos(); break;
     default: html = viewDashboard();
   }
-  main.innerHTML = html;
+  main.innerHTML = bannerCompetencia() + html;
+}
+
+function bannerCompetencia(){
+  const cur = DATA.meta.competenciaAtual, cal = calendarComp();
+  if(cal <= cur) return '';
+  let n = 0, c = cur; while(c < cal){ c = nextComp(c); n++; }
+  const abertas = computePendencias().length;
+  return `<div class="panel" style="border-color:var(--amber);background:var(--amber-tint);display:flex;justify-content:space-between;align-items:center;gap:16px;flex-wrap:wrap;">
+    <div style="font-size:13.5px;"><strong>A competência aberta é ${competenciaBR(cur)}, mas já estamos em ${competenciaBR(cal)}.</strong>
+      <div class="hint" style="margin-top:2px;">${abertas} item(ns) em aberto serão levados para o mês seguinte${n>1?` · faltam ${n} fechamento(s) até o mês atual`:''}.</div></div>
+    <button class="btn btn-primary" onclick="openModalFecharCompetencia()">Fechar ${competenciaBR(cur)} e abrir ${competenciaBR(nextComp(cur))}</button>
+  </div>`;
+}
+
+function openModalFecharCompetencia(){
+  const r = resumoFechamento();
+  const linha = (n, txt)=> `<li style="padding:5px 0;"><span class="mono" style="display:inline-block;min-width:26px;font-weight:600;">${n}</span> ${txt}</li>`;
+  showModal(`
+    <h3>Fechar ${competenciaBR(r.cur)} e abrir ${competenciaBR(r.prox)}</h3>
+    <p class="hint" style="margin-bottom:10px;">Nada é apagado. O que ainda está em aberto segue para ${competenciaBR(r.prox)} marcado como "mês anterior", e as obrigações recorrentes voltam sozinhas.</p>
+    <ul style="list-style:none;margin:0;padding:0;font-size:13.5px;">
+      ${linha(r.abertas.length, 'pendência(s) em aberto seguem para o novo mês'+(r.urgentes.length?` (<strong style="color:var(--brick)">${r.urgentes.length} urgente(s)</strong>)`:''))}
+      ${linha(r.lancamentos.length, 'lançamento(s) em folha / distribuição de lucros de '+competenciaBR(r.cur)+' ainda não feitos — continuam podendo ser lançados')}
+      ${linha(r.recorrentes.length, 'pendência(s) recorrente(s) serão recriadas em '+competenciaBR(r.prox))}
+      ${linha(r.novasObrig.length, 'obrigação(ões) do mês serão geradas para '+competenciaBR(r.prox)+' (pagamento, VT, lançamentos fixos, datas importantes)')}
+    </ul>
+    <div class="modal-actions">
+      <button type="button" class="btn" onclick="closeModal()">Cancelar</button>
+      <button type="button" class="btn btn-primary" onclick="confirmFecharCompetencia()">Fechar ${competenciaBR(r.cur)}</button>
+    </div>
+  `);
+}
+function confirmFecharCompetencia(){
+  const res = fecharCompetencia();
+  closeModal();
+  toast(`${competenciaBR(res.prox)} aberta · ${res.levadas} item(ns) levado(s) · ${res.geradas+res.recriadas} novo(s) lembrete(s).`);
+  go('pendencias');
 }
 
 /* ============================= DASHBOARD ============================= */
@@ -593,7 +773,7 @@ function viewDashboard(){
     return f.status==='Ativo' && ((s.contratado && !/confirmad/i.test(s.status)) || (o.contratado && !/confirmad/i.test(o.status)));
   });
   const exclusoesPend = DATA.empregados.filter(f=> f.status==='Desligado' && ((f.beneficios.unimedSaude.contratado && !/exclu[íi]da|encerrad/i.test(f.beneficios.unimedSaude.status)) || (f.beneficios.unimedOdonto.contratado && !/exclu[íi]da|encerrad/i.test(f.beneficios.unimedOdonto.status))));
-  const movNaoConferidas = DATA.movimentacoes.filter(m=>isCurrentComp(m.competencia) && (m.status==='Pendente'));
+  const movNaoConferidas = DATA.movimentacoes.filter(m=>m.competencia<=comp && m.status==='Pendente');
   const recargas = proximasRecargasVT();
 
   return `
@@ -621,11 +801,11 @@ function viewDashboard(){
       <div>
         <div class="panel">
           <h2>Movimentações não conferidas <button class="btn btn-sm" onclick="go('movimentacoes')">Ver todas</button></h2>
-          ${movNaoConferidas.length===0?`<p class="hint">Nenhuma movimentação pendente nesta competência.</p>`:`
+          ${movNaoConferidas.length===0?`<p class="hint">Nenhuma movimentação pendente de conferência.</p>`:`
           <table><thead><tr><th>Empregado</th><th>Empresa</th><th>Tipo</th><th>Valor</th><th>Status</th></tr></thead><tbody>
           ${movNaoConferidas.map(m=>{
             const f=empregadoById(m.empregadoId), emp=empresaById(m.empresaId);
-            return `<tr class="clickable" onclick="go('empregadoDetail',{empregadoId:'${f.id}',empresaId:'${emp.id}',empregadoTab:'dados'})"><td>${esc(f.nome)}</td><td>${esc(emp.nomeFantasia)}</td><td>${esc(m.tipo)}</td><td class="tnum">${money(m.valor)}</td><td>${badge(m.status)}</td></tr>`;
+            return `<tr class="clickable" onclick="go('empregadoDetail',{empregadoId:'${f.id}',empresaId:'${emp.id}',empregadoTab:'dados'})"><td>${esc(f.nome)}</td><td>${esc(emp.nomeFantasia)}</td><td>${esc(m.tipo)}${isCompAnterior(m.competencia)?` <span class="badge badge-urgente">${competenciaBR(m.competencia)}</span>`:''}</td><td class="tnum">${money(m.valor)}</td><td>${badge(m.status)}</td></tr>`;
           }).join('')}
           </tbody></table>`}
         </div>
@@ -1182,7 +1362,7 @@ function tabEmpresaPessoas(e){
 }
 
 function tabEmpresaMovimentacoes(e){
-  const movs = movimentacoesDe(e.id);
+  const movs = movimentacoesEmFoco(movimentacoesDe(e.id));
   return `
     <div class="panel">
       <h2>Movimentações da competência ${competenciaBR(DATA.meta.competenciaAtual)} <button class="btn btn-sm btn-primary" onclick="openModalMovimentacao(null,'${e.id}')">+ Nova movimentação</button></h2>
@@ -1779,7 +1959,13 @@ function deleteDistribuicao(id){
 function viewMovimentacoes(){
   const filtroEmpresa = VIEW.filtroEmpresa||'';
   const filtroStatus = VIEW.filtroStatus||'';
-  let movs = DATA.movimentacoes.slice().sort((a,b)=> a.competencia<b.competencia?1:-1);
+  const filtroComp = VIEW.filtroComp||'';
+  const cur = DATA.meta.competenciaAtual;
+  const comps = [...new Set(DATA.movimentacoes.map(m=>m.competencia).concat([cur]))].sort().reverse();
+  let movs = DATA.movimentacoes.slice();
+  if(filtroComp==='') movs = movimentacoesEmFoco(movs);
+  else if(filtroComp!=='all') movs = movs.filter(m=>m.competencia===filtroComp);
+  movs.sort((a,b)=> a.competencia<b.competencia?1:-1);
   if(filtroEmpresa) movs = movs.filter(m=>m.empresaId===filtroEmpresa);
   if(filtroStatus) movs = movs.filter(m=>m.status===filtroStatus);
   return `
@@ -1792,6 +1978,11 @@ function viewMovimentacoes(){
         <option value="">Todas as empresas</option>
         ${DATA.empresas.map(e=>`<option value="${e.id}" ${filtroEmpresa===e.id?'selected':''}>${esc(e.nomeFantasia)}</option>`).join('')}
       </select>
+      <select onchange="setFiltroMov('comp',this.value)">
+        <option value="" ${filtroComp===''?'selected':''}>${competenciaBR(cur)} + pendentes de meses anteriores</option>
+        <option value="all" ${filtroComp==='all'?'selected':''}>Todas as competências</option>
+        ${comps.map(c=>`<option value="${c}" ${filtroComp===c?'selected':''}>Somente ${competenciaBR(c)}</option>`).join('')}
+      </select>
       <select onchange="setFiltroMov('status',this.value)">
         <option value="">Todos os status</option>
         ${['Pendente','Conferido','Lançado','Finalizado'].map(s=>`<option ${filtroStatus===s?'selected':''}>${s}</option>`).join('')}
@@ -1802,7 +1993,7 @@ function viewMovimentacoes(){
       ${movs.map(m=>{
         const f = empregadoById(m.empregadoId), emp = empresaById(m.empresaId);
         return `<tr>
-          <td>${esc(f?f.nome:'—')}</td><td>${esc(emp?emp.nomeFantasia:'—')}</td><td>${esc(m.tipo)}</td><td class="tnum">${money(m.valor)}</td><td class="mono">${competenciaBR(m.competencia)}</td>
+          <td>${esc(f?f.nome:'—')}</td><td>${esc(emp?emp.nomeFantasia:'—')}</td><td>${esc(m.tipo)}</td><td class="tnum">${money(m.valor)}</td><td class="mono">${competenciaBR(m.competencia)}${isCompAnterior(m.competencia)&&m.status!=='Finalizado'?' <span class="badge badge-urgente">mês anterior</span>':''}</td>
           <td><select onchange="advanceMov('${m.id}',this.value)">${['Pendente','Conferido','Lançado','Finalizado'].map(s=>`<option ${m.status===s?'selected':''}>${s}</option>`).join('')}</select></td>
           <td><button class="icon-btn" onclick="deleteMov('${m.id}')">✕</button></td>
         </tr>`;
@@ -1811,7 +2002,7 @@ function viewMovimentacoes(){
     </div>
   `;
 }
-function setFiltroMov(which,val){ if(which==='empresa') VIEW.filtroEmpresa=val; else VIEW.filtroStatus=val; renderMain(); }
+function setFiltroMov(which,val){ if(which==='empresa') VIEW.filtroEmpresa=val; else if(which==='comp') VIEW.filtroComp=val; else VIEW.filtroStatus=val; renderMain(); }
 
 /* ============================= BENEFÍCIOS (GLOBAL) ============================= */
 function viewBeneficios(){
@@ -1879,28 +2070,46 @@ function viewPendencias(){
   const filtroEmpresa = VIEW.pFiltroEmpresa||'';
   const filtroTipo = VIEW.pFiltroTipo||'';
   const filtroStatus = VIEW.pFiltroStatus||'';
-  let pend = computePendencias();
+  const filtroComp = VIEW.pFiltroComp||'';
+  const mostrarConcl = !!VIEW.pMostrarConcluidas;
+  const cur = DATA.meta.competenciaAtual;
+  let pend = computePendencias(mostrarConcl);
   if(filtroEmpresa) pend = pend.filter(p=>p.empresaId===filtroEmpresa);
   if(filtroTipo) pend = pend.filter(p=>p.tipo===filtroTipo);
   if(filtroStatus) pend = pend.filter(p=>p.status===filtroStatus);
-  pend.sort((a,b)=> (a.status==='Urgente'?0:1) - (b.status==='Urgente'?0:1));
-  const tipos = [...new Set(computePendencias().map(p=>p.tipo))];
-  const pendDia01 = computePendencias().filter(p=>p.actionType==='folha' || p.actionType==='distribuicao');
+  if(filtroComp==='atual') pend = pend.filter(p=>!isCompAnterior(p.competencia));
+  if(filtroComp==='anteriores') pend = pend.filter(p=>isCompAnterior(p.competencia));
+  pend.sort((a,b)=>{
+    const ua = a.status==='Urgente'?0:1, ub = b.status==='Urgente'?0:1;
+    if(ua!==ub) return ua-ub;
+    return (a.competencia||cur).localeCompare(b.competencia||cur);
+  });
+  const todas = computePendencias();
+  const tipos = [...new Set(todas.map(p=>p.tipo))];
+  const pendDia30 = todas.filter(p=>p.actionType==='folha' || p.actionType==='distribuicao');
+  const deMesAnterior = todas.filter(p=>isCompAnterior(p.competencia)).length;
+  const fech = (DATA.fechamentos||[]).slice().reverse();
 
   return `
     <div class="pagehead">
-      <div><h1>Central de pendências</h1><div class="sub">Visão consolidada de itens críticos e próximos vencimentos.</div></div>
+      <div><h1>Central de pendências</h1><div class="sub">Competência aberta: <strong>${competenciaBR(cur)}</strong>${deMesAnterior?` · <span style="color:var(--brick)">${deMesAnterior} item(ns) vindo(s) de meses anteriores</span>`:''}. O que não for baixado segue para o mês seguinte.</div></div>
       <button class="btn btn-primary" onclick="openModalPendencia()">+ Pendência manual</button>
     </div>
     <div class="panel">
-      <h2>Lançamentos do dia 30 <span class="badge ${pendDia01.length?'badge-urgente':'badge-finalizado'}">${pendDia01.length}</span></h2>
-      <p class="hint" style="margin-top:-6px;margin-bottom:12px;">Benefícios de valor variável (Reembolso Faculdade, Produtividade, Ajuda de Custo) e distribuições de lucro que ainda precisam ser lançados na folha desta competência. Some da lista assim que você clicar em "Lançar".</p>
-      ${pendDia01.length===0?'<p class="hint">Nada pendente para lançar nesta competência.</p>':renderPendTable(pendDia01, false)}
+      <h2>Lançamentos do dia 30 <span class="badge ${pendDia30.length?'badge-urgente':'badge-finalizado'}">${pendDia30.length}</span></h2>
+      <p class="hint" style="margin-top:-6px;margin-bottom:12px;">Benefícios de valor variável (Reembolso Faculdade, Produtividade, Ajuda de Custo) e distribuições de lucro ainda não lançados — do mês atual e de meses anteriores. Cada "Lançar" registra no mês de origem e dá baixa no item.</p>
+      ${pendDia30.length===0?'<p class="hint">Nada pendente para lançar.</p>':renderPendTable(pendDia30, false)}
     </div>
     <div class="filterbar">
       <select onchange="setFiltroPend('empresa',this.value)"><option value="">Todas as empresas</option>${DATA.empresas.map(e=>`<option value="${e.id}" ${filtroEmpresa===e.id?'selected':''}>${esc(e.nomeFantasia)}</option>`).join('')}</select>
       <select onchange="setFiltroPend('tipo',this.value)"><option value="">Todos os tipos</option>${tipos.map(t=>`<option ${filtroTipo===t?'selected':''}>${esc(t)}</option>`).join('')}</select>
-      <select onchange="setFiltroPend('status',this.value)"><option value="">Todos os status</option>${['Urgente','Aberta'].map(s=>`<option ${filtroStatus===s?'selected':''}>${s}</option>`).join('')}</select>
+      <select onchange="setFiltroPend('status',this.value)"><option value="">Todos os status</option>${['Urgente','Aberta'].concat(mostrarConcl?['Concluída']:[]).map(s=>`<option ${filtroStatus===s?'selected':''}>${s}</option>`).join('')}</select>
+      <select onchange="setFiltroPend('comp',this.value)">
+        <option value="">Todas as competências</option>
+        <option value="atual" ${filtroComp==='atual'?'selected':''}>Só ${competenciaBR(cur)} (atual)</option>
+        <option value="anteriores" ${filtroComp==='anteriores'?'selected':''}>Só meses anteriores (em atraso)</option>
+      </select>
+      <label style="font-size:13px;display:flex;align-items:center;gap:6px;"><input type="checkbox" ${mostrarConcl?'checked':''} onchange="setMostrarConcluidas(this.checked)"> Mostrar baixadas</label>
     </div>
     <div class="panel">${renderPendTable(pend, true)}</div>
     <div class="panel">
@@ -1909,32 +2118,57 @@ function viewPendencias(){
       ${proximasRecargasVT().map(r=>`<li><span class="cl-label">${esc(r.empregado)} — ${esc(r.empresa)}</span><span class="mono" style="font-size:12px;color:var(--ink-soft);">dia ${r.dia}</span></li>`).join('') || '<li class="hint">Nenhuma recarga programada.</li>'}
       </ul>
     </div>
+    <div class="panel">
+      <h2>Histórico de fechamentos</h2>
+      ${fech.length===0?'<p class="hint">Nenhuma competência fechada ainda. Use "Fechar competência" na barra lateral ao concluir o mês.</p>':`
+      <table><thead><tr><th>Competência</th><th>Fechada em</th><th>Levados para o mês seguinte</th><th>Urgentes</th></tr></thead><tbody>
+      ${fech.map(f=>`<tr><td>${competenciaBR(f.competencia)}</td><td class="mono">${dateBR(f.fechadaEm)}</td><td>${f.levadas} item(ns) → ${competenciaBR(f.proxima)}</td><td>${f.urgentes}</td></tr>`).join('')}
+      </tbody></table>`}
+    </div>
   `;
 }
 function setFiltroPend(which,val){
   if(which==='empresa') VIEW.pFiltroEmpresa=val;
   else if(which==='tipo') VIEW.pFiltroTipo=val;
+  else if(which==='comp') VIEW.pFiltroComp=val;
   else VIEW.pFiltroStatus=val;
+  renderMain();
+}
+function setMostrarConcluidas(v){
+  VIEW.pMostrarConcluidas = v;
+  if(!v && VIEW.pFiltroStatus==='Concluída') VIEW.pFiltroStatus='';
   renderMain();
 }
 function renderPendTable(pend, allowDelete){
   if(pend.length===0) return `<p class="hint">Nenhuma pendência encontrada.</p>`;
-  return `<table><thead><tr><th>Status</th><th>Empresa</th><th>Tipo</th><th>Descrição</th><th>Prazo</th><th></th></tr></thead><tbody>
+  return `<table><thead><tr><th>Status</th><th>Competência</th><th>Empresa</th><th>Tipo</th><th>Descrição</th><th>Prazo</th><th></th></tr></thead><tbody>
     ${pend.map(p=>{
       const e = empresaById(p.empresaId);
-      const dleft = p.prazo?daysUntil(p.prazo):null;
+      const dleft = (p.prazo && p.status!=='Concluída')?daysUntil(p.prazo):null;
+      const anterior = isCompAnterior(p.competencia);
+      const concluida = p.status==='Concluída';
+      const comp = p.competencia ? `${competenciaBR(p.competencia)}${anterior&&!concluida?` <span class="badge badge-urgente" title="Item de um mês já fechado que continua em aberto">mês anterior</span>`:''}` : '—';
       let actionHtml = '';
-      if(p.actionType==='folha'){
-        actionHtml = `<button class="btn btn-sm btn-primary" onclick="event.stopPropagation();launchBenefFolha('${p.actionEmpregadoId}','${p.actionKey}')">Lançar</button>`;
-      }else if(p.actionType==='distribuicao'){
-        actionHtml = `<button class="btn btn-sm btn-primary" onclick="event.stopPropagation();launchDistribuicaoLucro('${p.actionSocioId}')">Lançar</button>`;
-      }else if(allowDelete && !p.auto){
-        actionHtml = `<button class="icon-btn" onclick="event.stopPropagation();deletePendManual('${p.id}')">✕</button>`;
+      if(concluida){
+        actionHtml = `<button class="btn btn-sm" onclick="event.stopPropagation();reabrirPendencia('${p.id}')">Reabrir</button>`;
+      }else{
+        if(p.actionType==='folha'){
+          actionHtml += `<button class="btn btn-sm btn-primary" onclick="event.stopPropagation();launchBenefFolha('${p.actionEmpregadoId}','${p.actionKey}','${p.competencia||''}','${p.auto?'':p.id}')">Lançar</button> `;
+        }else if(p.actionType==='distribuicao'){
+          actionHtml += `<button class="btn btn-sm btn-primary" onclick="event.stopPropagation();launchDistribuicaoLucro('${p.actionSocioId}','${p.competencia||''}','${p.auto?'':p.id}')">Lançar</button> `;
+        }
+        if(!p.auto && !p.actionType){
+          actionHtml += `<button class="btn btn-sm" onclick="event.stopPropagation();baixarPendencia('${p.id}')">Baixar</button> `;
+        }
+        if(allowDelete && !p.auto && p.origem==='manual'){
+          actionHtml += `<button class="icon-btn" title="Excluir" onclick="event.stopPropagation();deletePendManual('${p.id}')">✕</button>`;
+        }
       }
-      return `<tr class="clickable" onclick="${p.empregadoId?`go('empregadoDetail',{empregadoId:'${p.empregadoId}',empresaId:'${p.empresaId}',empregadoTab:'dados'})`:(p.empresaId?`go('empresaDetail',{empresaId:'${p.empresaId}',empresaTab:'pendencias'})`:'')}">
-        <td>${badge(p.status)}</td><td>${esc(e?e.nomeFantasia:'—')}</td><td>${esc(p.tipo)}</td><td>${esc(p.descricao)}</td>
+      const rec = p.recorrente?` <span class="badge badge-neutro" title="Volta automaticamente todo mês">↻ mensal</span>`:'';
+      return `<tr class="clickable" style="${concluida?'opacity:.55;':''}" onclick="${p.empregadoId?`go('empregadoDetail',{empregadoId:'${p.empregadoId}',empresaId:'${p.empresaId}',empregadoTab:'dados'})`:(p.empresaId?`go('empresaDetail',{empresaId:'${p.empresaId}',empresaTab:'pendencias'})`:'')}">
+        <td>${badge(p.status)}</td><td class="mono" style="white-space:nowrap;">${comp}</td><td>${esc(e?e.nomeFantasia:'—')}</td><td>${esc(p.tipo)}${rec}</td><td>${esc(p.descricao)}</td>
         <td class="mono">${p.prazo?dateBR(p.prazo)+(dleft!==null?` <span style="color:${dleft<0?'var(--brick)':'var(--slate)'}">(${dleft<0?Math.abs(dleft)+'d atraso':dleft+'d'})</span>`:''):'—'}</td>
-        <td>${actionHtml}</td>
+        <td style="white-space:nowrap;">${actionHtml}</td>
       </tr>`;
     }).join('')}
   </tbody></table>`;
@@ -1949,7 +2183,9 @@ function openModalPendencia(){
         <div class="field"><label>Status</label><select name="status">${['Aberta','Urgente'].map(s=>`<option>${s}</option>`).join('')}</select></div>
         <div class="field full"><label>Descrição</label><textarea required name="descricao"></textarea></div>
         <div class="field"><label>Prazo</label><input type="date" name="prazo"></div>
+        <div class="field" style="display:flex;align-items:flex-end;"><label style="display:flex;align-items:center;gap:8px;font-size:13px;color:var(--ink);margin:0 0 8px 0;"><input type="checkbox" name="recorrente" style="width:auto;"> Repetir todo mês</label></div>
       </div>
+      <p class="hint">Com "Repetir todo mês", o item volta sozinho na competência seguinte, mesmo depois de baixado.</p>
       <div class="modal-actions"><button type="button" class="btn" onclick="closeModal()">Cancelar</button><button type="submit" class="btn btn-primary">Salvar</button></div>
     </form>
   `);
@@ -1957,7 +2193,9 @@ function openModalPendencia(){
 function savePendencia(ev){
   ev.preventDefault();
   const vals = Object.fromEntries(new FormData(ev.target).entries());
-  DATA.pendenciasManuais.push(Object.assign({id:newId('p'), empregadoId:null}, vals));
+  vals.recorrente = vals.recorrente==='on';
+  vals.prazo = vals.prazo || null;
+  DATA.pendenciasManuais.push(Object.assign({id:newId('p'), empregadoId:null, competencia:DATA.meta.competenciaAtual, origem:'manual'}, vals));
   persist(); closeModal(); toast('Pendência registrada.'); render();
   return false;
 }
@@ -2002,6 +2240,7 @@ function closeModal(){
 }
 
 /* ============================= INIT ============================= */
+bootstrapMonth();
 render();
 </script>
 </body>
