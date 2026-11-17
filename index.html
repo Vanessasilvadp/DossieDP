@@ -1778,7 +1778,11 @@ function tabEmpChecklist(f){
   const deslPct = f.checklistDesligamento?pct(f.checklistDesligamento):null;
   return `
     <div class="panel">
-      <h2>Checklist de admissão</h2>
+      <h2>Checklist de admissão
+        <label style="font-size:13px;font-weight:500;display:flex;align-items:center;gap:6px;cursor:pointer;">
+          <input type="checkbox" style="width:16px;height:16px;accent-color:var(--teal);" ${Object.values(f.checklistAdmissao).every(Boolean)?'checked':''} onchange="marcarTodosChecklist('${f.id}','checklistAdmissao',this.checked)"> Marcar todos
+        </label>
+      </h2>
       <div class="checklist-progress"><div class="checklist-progress-bar" style="width:${admPct}%;"></div></div>
       <ul class="checklist">
         ${Object.entries(f.checklistAdmissao).map(([k,v])=>`
@@ -1797,6 +1801,17 @@ function tabEmpChecklist(f){
       </ul>
     </div>`:`<p class="hint">Sem processo de desligamento em andamento.</p>`}
   `;
+}
+/* Marca (ou desmarca) todas as etapas de um checklist de uma só vez */
+function marcarTodosChecklist(id, which, marcar){
+  const f = empregadoById(id);
+  if(!f || !f[which]) return;
+  Object.keys(f[which]).forEach(k=> f[which][k] = marcar);
+  if(marcar && which==='checklistAdmissao'){
+    f.historico = f.historico||[];
+    f.historico.push({data:new Date().toISOString().slice(0,10), tipo:'Admissão', desc:'Todas as etapas do checklist de admissão marcadas como conferidas.'});
+  }
+  persist(); render();
 }
 function escAttr(s){ return String(s).replace(/'/g,"\\'"); }
 function pct(obj){ const vals = Object.values(obj); return Math.round(100*vals.filter(Boolean).length/vals.length); }
